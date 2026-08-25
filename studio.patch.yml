@@ -10,4 +10,3 @@
       inject: [harmony]
     - id: harmony-studio
       name: dsh-webui-studio
-      inject: [harmony]

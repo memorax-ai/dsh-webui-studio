@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { NodePeerClient } from 'the-binding-of-dsh'
@@ -45,12 +45,17 @@ function harmonyPackageRoot(harmonyBinEntry: string): string {
   return dirname(dirname(harmonyBinEntry))
 }
 
-function dshPackageModules(harmonyBinEntry: string): string {
+export function dshPackageModules(harmonyBinEntry: string): string {
   const configured = process.env.DSH_HARMONY_DSH_ENTRY
   const dshEntry = configured === undefined
     ? createRequire(harmonyBinEntry).resolve('@deepseek-ai/dsh/lib/bin.js')
     : resolve(configured)
-  return join(dirname(dirname(dshEntry)), 'node_modules')
+  let directory = dirname(dshEntry)
+  while (dirname(directory) !== directory) {
+    if (basename(directory) === 'node_modules') return directory
+    directory = dirname(directory)
+  }
+  throw new Error(`harmony-studio: cannot locate node_modules for ${JSON.stringify(dshEntry)}`)
 }
 
 function waitForExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {

@@ -11,6 +11,7 @@ import type {
   StudioAutomaticPatchWriteResult,
   StudioBuildResult,
   StudioCreateDraftInput,
+  StudioCurrentInstanceView,
   StudioDraftView,
   StudioElementStyleSource,
   StudioHarmonyInspection,
@@ -27,6 +28,13 @@ import type {
 } from './contracts.js'
 
 export interface StudioRemote {
+  currentGet(signal?: AbortSignal): Promise<RemoteResult<StudioCurrentInstanceView>>
+  currentPreviewStatus(signal?: AbortSignal): Promise<RemoteResult<StudioPreviewStatus>>
+  currentPreviewUpdate(input: StudioPreviewUpdate, signal?: AbortSignal): Promise<RemoteResult<StudioPreviewStatus>>
+  currentResolveSource(input: { source: StudioSourceLocation }, signal?: AbortSignal): Promise<RemoteResult<StudioSourceCandidate>>
+  currentAgentCreate(input: { agentPreset?: string }, signal?: AbortSignal): Promise<RemoteResult<StudioAgentBinding>>
+  currentAgentAttach(input: { sessionId: string }, signal?: AbortSignal): Promise<RemoteResult<StudioAgentBinding>>
+  currentAgentLeave(signal?: AbortSignal): Promise<RemoteResult<StudioCurrentInstanceView>>
   draftsList(signal?: AbortSignal): Promise<RemoteResult<StudioDraftView[]>>
   draftsCreate(input: StudioCreateDraftInput, signal?: AbortSignal): Promise<RemoteResult<StudioDraftView>>
   draftsRename(input: { draftId: string; label: string }, signal?: AbortSignal): Promise<RemoteResult<StudioDraftView>>
@@ -71,6 +79,13 @@ export function invokeStudioRemote(
   signal?: AbortSignal,
 ): Promise<RemoteResult<unknown>> | undefined {
   const calls: Readonly<Record<string, () => Promise<RemoteResult<unknown>>>> = {
+    'studio.current.get': () => remote.currentGet(signal),
+    'studio.current.preview.status': () => remote.currentPreviewStatus(signal),
+    'studio.current.preview.update': () => remote.currentPreviewUpdate(payload, signal),
+    'studio.current.resolveSource': () => remote.currentResolveSource(payload, signal),
+    'studio.current.agent.create': () => remote.currentAgentCreate(payload, signal),
+    'studio.current.agent.attach': () => remote.currentAgentAttach(payload, signal),
+    'studio.current.agent.leave': () => remote.currentAgentLeave(signal),
     'studio.drafts.list': () => remote.draftsList(signal),
     'studio.drafts.create': () => remote.draftsCreate(payload, signal),
     'studio.drafts.rename': () => remote.draftsRename(payload, signal),
@@ -186,6 +201,7 @@ const previewUpdateSchema = draftIdSchema.extend({
   selection: z.unknown().optional(),
   registry: z.unknown().optional(),
 })
+const currentPreviewUpdateSchema = previewUpdateSchema.omit({ draftId: true })
 
 function codec(typeSymbol: string, schema: z.ZodType): InvocationDescriptor['result'] {
   return { mode: 'strict', typeSymbol, schema }
@@ -210,6 +226,13 @@ function invocation(method: string, input?: z.ZodType, result: z.ZodType = z.unk
 }
 
 export const STUDIO_INVOCATIONS: readonly InvocationDescriptor[] = [
+  invocation('currentGet'),
+  invocation('currentPreviewStatus'),
+  invocation('currentPreviewUpdate', currentPreviewUpdateSchema),
+  invocation('currentResolveSource', z.object({ source: sourceLocationSchema })),
+  invocation('currentAgentCreate', z.object({ agentPreset: nonEmpty.optional() })),
+  invocation('currentAgentAttach', z.object({ sessionId: nonEmpty })),
+  invocation('currentAgentLeave'),
   invocation('draftsList'),
   invocation('draftsCreate', createDraftSchema),
   invocation('draftsRename', draftIdSchema.extend({ label: z.string() })),

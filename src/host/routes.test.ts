@@ -80,6 +80,20 @@ describe('Studio routes', () => {
     expect(bridge.body).toBe('studio-bridge')
   })
 
+  it('keeps the Studio URL on the official Harmony installer until the runtime is active', async () => {
+    const assets = {
+      script: Buffer.from('studio-script'), style: Buffer.from('studio-style'), bridge: Buffer.from('studio-bridge'),
+      icon: Buffer.from('studio-icon'), iconMono: Buffer.from('studio-icon-mono'),
+    }
+    const registered = createStudioRoutes(assets, () => false)
+    const page = await invoke(registered.find(route => route.path === STUDIO_PATH)!)
+
+    expect(page.status).toBe(200)
+    expect(page.body).toContain('<iframe src="/"')
+    expect(page.body).toContain("status.state === 'active'")
+    expect(page.body).toContain('location.reload()')
+  })
+
   it('serves only a 404 tombstone at the removed Studio API path', async () => {
     const registered = routes()
     const removed = registered.find(route => route.path === `${STUDIO_PATH}/api`)!

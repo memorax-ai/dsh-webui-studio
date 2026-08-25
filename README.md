@@ -57,6 +57,7 @@ not depend on Studio.
 - [x] Edit Draft source with CodeMirror and protect installed dependency sources as read-only
 - [x] Build, apply through Harmony, reload, and confirm the live Client graph revision
 - [x] Start a Draft-scoped Agent or continue an existing DSH session with temporary Studio tools, skill, and context
+- [x] Let an external Agent inspect the running WebUI through a local read-only Streamable HTTP MCP endpoint
 - [x] Answer one-shot tool approvals, structured questions, and plan reviews without leaving Studio
 - [x] Check package exports, artifacts, Patch state, ordering, dependencies, and pack output
 - [x] Run multiple isolated Draft Preview Hosts at the same time
@@ -89,6 +90,35 @@ Studio is served locally at:
 ```text
 http://127.0.0.1:<dsh-port>/studio
 ```
+
+External Agents can connect to the running instance through MCP at:
+
+```text
+http://127.0.0.1:<dsh-port>/studio/mcp
+```
+
+A typical MCP client entry is:
+
+```json
+{
+  "mcpServers": {
+    "dsh-webui-studio": {
+      "type": "http",
+      "url": "http://127.0.0.1:<dsh-port>/studio/mcp"
+    }
+  }
+}
+```
+
+Add that URL as a Streamable HTTP MCP server in the external Agent. It exposes
+`studio_get_context`, `studio_get_selection`, `studio_get_harmony_profile`,
+`studio_inspect_harmony_target`, `studio_read_dependency_source`, and
+`studio_preview_status`. These tools inspect the current Host only; the external
+Agent remains responsible for editing and building its own WebUI project. Harmony
+profile, Patch, and dependency-source inspection work directly from the Host.
+DOM selection is available while Studio is open and an element is selected in
+the current-instance Preview. The endpoint follows Studio's existing loopback-only
+boundary, including access through an SSH loopback tunnel.
 
 Its managed data lives under `$DSH_HOME/studio/`:
 
@@ -129,7 +159,7 @@ workspace and never stops or deletes the Draft. Unsaved Source changes must be s
 > [!IMPORTANT]
 > Studio requires the public Harmony service and CLI APIs documented in
 > [`docs/harmony-api-requirements.md`](docs/harmony-api-requirements.md).
-> `dsh-harmony@0.7.2` is the minimum compatible release.
+> `dsh-harmony@0.8.7` is the minimum compatible release.
 
 ```sh
 dsh plugin --profile web add dsh-webui-studio

@@ -26,6 +26,14 @@ export class StudioService extends TypertRemoteService {
     super(ctx, 'studio')
   }
 
+  currentGet(signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentGet() }
+  currentPreviewStatus(signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentPreviewStatus() }
+  currentPreviewUpdate(input: StudioPreviewUpdate, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentPreviewUpdate(input) }
+  currentResolveSource(input: { source: StudioSourceLocation }, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentResolveSource(input) }
+  currentAgentCreate(input: { agentPreset?: string }, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentAgentCreate(input) }
+  currentAgentAttach(input: { sessionId: string }, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentAgentAttach(input) }
+  currentAgentLeave(signal: AbortSignal) { signal.throwIfAborted(); return this.backend.currentAgentLeave() }
+
   draftsList(signal: AbortSignal) { signal.throwIfAborted(); return this.backend.draftsList() }
   draftsCreate(input: StudioCreateDraftInput, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.draftsCreate(input) }
   draftsRename(input: { draftId: string; label: string }, signal: AbortSignal) { signal.throwIfAborted(); return this.backend.draftsRename(input) }

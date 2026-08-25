@@ -7,6 +7,7 @@ import { StudioAgentController } from './agent.js'
 
 function workspace(): StudioAgentWorkspace {
   return {
+    kind: 'draft',
     project: vi.fn(() => ({ name: 'draft', root: '/draft', state: 'active', graphRev: 'rev-1' })),
     selection: vi.fn(() => ({
       tag: 'button', classes: ['save'], attributes: {}, text: 'Save', outerHTML: '<button>Save</button>',
@@ -14,16 +15,20 @@ function workspace(): StudioAgentWorkspace {
       react: { owners: ['Button'], props: {}, patches: [] }, confidence: 'dom-only',
     })),
     context: vi.fn(async () => ({
+      target: 'draft',
+      readOnly: false,
       selection: null,
       project: { name: 'draft', root: '/draft', state: 'active', graphRev: 'rev-1' },
       preview: { connected: true, mode: 'inspect', graphRev: 'rev-1' },
       projectFiles: [{ path: 'src/index.ts', size: 6 }],
+      profile: { revision: 1, dir: '/profile', order: [], patchOrder: [], disabled: [], plugins: [], orderViolations: [], patchOrderViolations: [], compatibility: [] },
       harmony: null,
       targetRefs: [],
       targetRefsTruncated: false,
       readiness: { findings: [] },
     })),
     previewStatus: vi.fn(() => ({ connected: true, mode: 'inspect', graphRev: 'rev-1' })),
+    harmonyProfile: vi.fn(async () => ({ revision: 1, dir: '/profile', order: [], patchOrder: [], disabled: [], plugins: [], orderViolations: [], patchOrderViolations: [], compatibility: [] })),
     inspectHarmony: vi.fn(() => ({ patches: [], targets: [] })),
     readDependencySource: vi.fn(async () => 'dependency source'),
     readFile: vi.fn(async () => 'source'),
@@ -104,6 +109,7 @@ describe('StudioAgentController', () => {
     expect([...runtime.definitions.keys()]).toEqual([
       'studio_get_context',
       'studio_get_selection',
+      'studio_get_harmony_profile',
       'studio_inspect_harmony_target',
       'studio_read_project_file',
       'studio_read_dependency_source',
@@ -129,12 +135,51 @@ describe('StudioAgentController', () => {
       .resolves.toMatchObject({ selection: { tag: 'button' } })
     await expect(runtime.definitions.get('studio_get_context')?.execute({}, { signal } as never))
       .resolves.toMatchObject({ project: { name: 'draft' }, readiness: { findings: [] } })
+    await expect(runtime.definitions.get('studio_get_harmony_profile')?.execute({}, { signal } as never))
+      .resolves.toMatchObject({ dir: '/profile', revision: 1 })
     await expect(runtime.definitions.get('studio_preview_status')?.execute({}, { signal } as never))
       .resolves.toMatchObject({ project: { name: 'draft' }, preview: { connected: true } })
 
     await controller.leave()
     expect(controller.snapshot()).toBeUndefined()
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('gives the current instance only read-only inspection tools', async () => {
+    const runtime = agentContext()
+    const dispose = vi.fn(async () => {})
+    const agent = {}
+    const current = workspace()
+    Object.assign(current, {
+      kind: 'current-instance',
+      readFile: undefined,
+      applyPatch: undefined,
+      build: undefined,
+    })
+    const agents = {
+      create: vi.fn(async (options: CreateAgentOptions) => {
+        await options.setup?.(runtime.value)
+        return { agent, dispose } as AgentHandle
+      }),
+    } as unknown as AgentRegistry
+
+    const controller = new StudioAgentController(agents, current)
+    await controller.create()
+
+    expect([...runtime.definitions.keys()]).toEqual([
+      'studio_get_context',
+      'studio_get_selection',
+      'studio_get_harmony_profile',
+      'studio_inspect_harmony_target',
+      'studio_read_dependency_source',
+      'studio_preview_status',
+    ])
+    expect(runtime.section).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining('This Studio scope is read-only'),
+    }))
+    expect(runtime.skill).toHaveBeenCalledWith(expect.objectContaining({
+      description: expect.stringContaining('read-only Studio tools'),
+    }))
   })
 
   it('temporarily adds Studio mode to an idle live session without owning it', async () => {
@@ -158,7 +203,7 @@ describe('StudioAgentController', () => {
     expect(agents.resume).not.toHaveBeenCalled()
 
     await controller.leave()
-    expect(runtime.cleanup).toHaveBeenCalledTimes(12)
+    expect(runtime.cleanup).toHaveBeenCalledTimes(13)
   })
 
   it('resumes a cold persisted session for Studio mode and disposes only that live handle on leave', async () => {

@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { isProfilePatchEnabled, isProfilePluginEnabled, moveProfilePatch, moveProfilePlugin, providerRuntimeStatus, setProfilePatchEnabled, setProfilePluginEnabled } from './profile-order.js'
 
 describe('Harmony profile editing', () => {
-  it('moves plugins while keeping Harmony pinned first', () => {
-    const order = ['dsh-harmony', 'plugin-a', 'plugin-b']
+  it('moves plugins without crossing the Harmony control-plane barriers', () => {
+    const order = ['dsh-harmony', 'plugin-a', 'the-binding-of-dsh', 'plugin-b', 'plugin-c']
 
-    expect(moveProfilePlugin(order, 'plugin-b', 0)).toEqual(['dsh-harmony', 'plugin-b', 'plugin-a'])
+    expect(moveProfilePlugin(order, 'plugin-c', 0)).toEqual([
+      'dsh-harmony', 'plugin-a', 'the-binding-of-dsh', 'plugin-c', 'plugin-b',
+    ])
+    expect(moveProfilePlugin(order, 'plugin-a', 4)).toEqual(order)
     expect(moveProfilePlugin(order, 'dsh-harmony', 2)).toEqual(order)
-    expect(order).toEqual(['dsh-harmony', 'plugin-a', 'plugin-b'])
+    expect(moveProfilePlugin(order, 'the-binding-of-dsh', 4)).toEqual(order)
+    expect(order).toEqual(['dsh-harmony', 'plugin-a', 'the-binding-of-dsh', 'plugin-b', 'plugin-c'])
   })
 
   it('toggles a provider as one unit without changing other disabled patches', () => {

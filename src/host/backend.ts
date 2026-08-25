@@ -10,6 +10,7 @@ import type {
   StudioAutomaticPatchRequest,
   StudioAutomaticPatchWriteResult,
   StudioCreateDraftInput,
+  StudioCurrentInstanceView,
   StudioDraftRecord,
   StudioDraftView,
   StudioHarmonyInspection,
@@ -30,10 +31,11 @@ import { analyzeAutomaticPatch, writeAutomaticPatch } from './automatic-patch.js
 import { StudioBuildRunner } from './build.js'
 import type { StudioCommandRunner, StudioDraftRegistry } from './drafts.js'
 import { readElementsStyles, saveElementsSource } from './element-source.js'
-import { StudioPreviewSupervisor } from './preview.js'
+import { dshPackageModules, StudioPreviewSupervisor } from './preview.js'
 import { applyProjectPatch, listProjectFiles, readProjectFile, writeProjectFile } from './project-files.js'
 import { inspectReadiness, StudioPackRunner } from './readiness.js'
 import { assertDraftPackageIdentity, installDraftDependencies } from './runtime-profile.js'
+import { StudioSourceResolver } from './source-resolution.js'
 import type { StudioWorkspaceStore } from './workspace.js'
 
 const HARMONY_BIN_ENTRY = fileURLToPath(import.meta.resolve('dsh-harmony/bin'))
@@ -131,6 +133,7 @@ function elementStyleSources(payload: unknown): StudioElementStyleSource[] {
 }
 
 class StudioDraftController implements StudioAgentWorkspace {
+  readonly kind = 'draft' as const
   private projectState?: StudioProjectState
   private previewState: StudioPreviewStatus = { connected: false, mode: 'browse' }
   private readonly builds: StudioBuildRunner
@@ -228,10 +231,13 @@ class StudioDraftController implements StudioAgentWorkspace {
       ? inspectedHarmony : null
     const readiness = await this.readiness()
     return {
+      target: 'draft',
+      readOnly: false,
       selection: selection ?? null,
       project: this.project(),
       preview: this.previewStatus(),
       projectFiles: await listProjectFiles(this.record.root),
+      profile: await this.harmonyProfile(),
       harmony,
       targetRefs,
       targetRefsTruncated: targetRefs.length < allTargetRefs.length,
@@ -264,6 +270,10 @@ class StudioDraftController implements StudioAgentWorkspace {
 
   async inspectHarmony(input: { package?: string; file?: string }): Promise<StudioHarmonyInspection> {
     return (await this.preview.inspect(input)).harmony
+  }
+
+  harmonyProfile() {
+    return this.preview.profile()
   }
 
   profile(): Promise<StudioHarmonyProfile> {
@@ -355,10 +365,132 @@ class StudioDraftController implements StudioAgentWorkspace {
   }
 }
 
+class StudioCurrentInstanceController implements StudioAgentWorkspace {
+  readonly kind = 'current-instance' as const
+  private previewState: StudioPreviewStatus = { connected: false, mode: 'browse' }
+  private readonly agent: StudioAgentController
+  private readonly sources: StudioSourceResolver
+
+  constructor(
+    private readonly harmony: StudioHarmonyService,
+    agents: AgentRegistry,
+    private readonly previewUrl: string,
+    private readonly bridgeCapability: string,
+  ) {
+    this.agent = new StudioAgentController(agents, this)
+    const profileDir = harmony.profile().dir
+    this.sources = new StudioSourceResolver(undefined, profileDir, [dshPackageModules(HARMONY_BIN_ENTRY)])
+  }
+
+  view(): StudioCurrentInstanceView {
+    const agent = this.agent.snapshot()
+    return {
+      previewUrl: this.previewUrl,
+      bridgeCapability: this.bridgeCapability,
+      ...(agent === undefined ? {} : { agent }),
+    }
+  }
+
+  project(): StudioProjectState {
+    const profile = this.harmony.profile()
+    return {
+      name: 'current-webui',
+      root: profile.dir,
+      state: 'active',
+      graphRev: this.previewState.graphRev ?? String(profile.revision),
+    }
+  }
+
+  selection() {
+    return this.previewState.selection
+  }
+
+  previewStatus(): StudioPreviewStatus {
+    return this.previewState
+  }
+
+  updatePreview(update: StudioPreviewUpdate): StudioPreviewStatus {
+    const next = { ...this.previewState, ...update } as StudioPreviewStatus & {
+      selection?: StudioPreviewStatus['selection'] | null
+      registry?: StudioPreviewStatus['registry'] | null
+    }
+    if (next.selection === null) delete next.selection
+    if (next.registry === null) delete next.registry
+    this.previewState = next
+    return this.previewState
+  }
+
+  resolveSource(source: StudioSourceLocation) {
+    return this.sources.resolve(source)
+  }
+
+  harmonyProfile() {
+    return Promise.resolve(this.harmony.profile())
+  }
+
+  inspectHarmony(input: { package?: string; file?: string }): Promise<StudioHarmonyInspection> {
+    return Promise.resolve(this.harmony.inspect(input))
+  }
+
+  readDependencySource(packageName: string, file: string): Promise<string> {
+    return this.sources.readDependency(packageName, file)
+  }
+
+  async context(): Promise<StudioAgentContext> {
+    const selection = this.selection()
+    const refs = new Map<string, { package: string; file: string }>()
+    for (const patch of selection?.react?.patches ?? []) {
+      refs.set(`${patch.target.package}\0${patch.target.file}`, patch.target)
+    }
+    const source = selection?.react?.source?.resolved
+    if (source?.package !== undefined) refs.set(`${source.package}\0${source.file}`, { package: source.package, file: source.file })
+    const allTargetRefs = [...refs.values()]
+    const targetRefs = allTargetRefs.slice(0, 8)
+    const inspections = await Promise.all(targetRefs.map(ref => this.inspectHarmony(ref)))
+    const inspectedHarmony = inspections.length === 0 ? null : {
+      patches: [...new Map(inspections.flatMap(item => item.patches).map(patch => [patch.key, patch])).values()],
+      targets: [...new Map(inspections.flatMap(item => item.targets).map(target => [`${target.package}\0${target.file}`, target])).values()],
+    }
+    const harmony = inspectedHarmony !== null && Buffer.byteLength(JSON.stringify(inspectedHarmony)) <= 256 * 1024
+      ? inspectedHarmony : null
+    return {
+      target: 'current-instance',
+      readOnly: true,
+      selection: selection ?? null,
+      project: this.project(),
+      preview: this.previewStatus(),
+      projectFiles: [],
+      profile: this.harmony.profile(),
+      harmony,
+      targetRefs,
+      targetRefsTruncated: targetRefs.length < allTargetRefs.length,
+      readiness: { findings: [] },
+    }
+  }
+
+  createAgent(agentPreset?: string) {
+    return this.agent.create(agentPreset)
+  }
+
+  attachAgent(sessionId: string) {
+    return this.agent.attach(sessionId)
+  }
+
+  async leaveAgent(): Promise<StudioCurrentInstanceView> {
+    await this.agent.leave()
+    return this.view()
+  }
+
+  dispose() {
+    return this.agent.leave()
+  }
+}
+
 /** Stable-Host control plane for persistent, isolated Draft Preview runtimes. */
 export class StudioBackend {
   private readonly controllers = new Map<string, StudioDraftController>()
   private readonly controllerCreations = new Map<string, Promise<StudioDraftController>>()
+  private readonly current: StudioCurrentInstanceController
 
   constructor(
     private readonly harmony: StudioHarmonyService,
@@ -368,7 +500,69 @@ export class StudioBackend {
     private readonly workspace: StudioWorkspaceStore,
     private readonly commands: StudioCommandRunner,
     private readonly parentOrigin: string,
-  ) {}
+    currentBridgeCapability = 'current-instance',
+  ) {
+    this.current = new StudioCurrentInstanceController(
+      harmony,
+      agents,
+      `${parentOrigin}/#dsh-studio-preview=${encodeURIComponent(currentBridgeCapability)}`,
+      currentBridgeCapability,
+    )
+  }
+
+  currentGet(): StudioCurrentInstanceView {
+    return this.current.view()
+  }
+
+  currentPreviewStatus(): StudioPreviewStatus {
+    return this.current.previewStatus()
+  }
+
+  currentProjectState(): StudioProjectState {
+    return this.current.project()
+  }
+
+  currentContext(): Promise<StudioAgentContext> {
+    return this.current.context()
+  }
+
+  currentHarmonyProfile() {
+    return this.current.harmonyProfile()
+  }
+
+  currentHarmonyInspect(input: { package?: string; file?: string }): Promise<StudioHarmonyInspection> {
+    return this.current.inspectHarmony(input)
+  }
+
+  currentReadDependencySource(input: { package: string; file: string }): Promise<string> {
+    return this.current.readDependencySource(input.package, input.file)
+  }
+
+  currentPreviewUpdate(input: StudioPreviewUpdate): StudioPreviewStatus {
+    return this.current.updatePreview(this.parsePreviewStatus(input))
+  }
+
+  currentResolveSource(input: { source: StudioSourceLocation }) {
+    if (typeof input.source?.file !== 'string') throw new Error('source is required')
+    return this.current.resolveSource(input.source)
+  }
+
+  currentAgentCreate(input: { agentPreset?: string }): Promise<StudioAgentBinding> {
+    if (input.agentPreset !== undefined && typeof input.agentPreset !== 'string') throw new Error('agentPreset must be a string')
+    return this.current.createAgent(input.agentPreset)
+  }
+
+  currentAgentAttach(input: { sessionId: string }): Promise<StudioAgentBinding> {
+    if (typeof input.sessionId !== 'string' || input.sessionId.trim() === '') throw new Error('sessionId is required')
+    if ([...this.controllers.values()].some(controller => controller.view().agent?.sessionId === input.sessionId)) {
+      throw new Error('the selected session is already attached to a Draft')
+    }
+    return this.current.attachAgent(input.sessionId)
+  }
+
+  currentAgentLeave(): Promise<StudioCurrentInstanceView> {
+    return this.current.leaveAgent()
+  }
 
   draftsList(): Promise<StudioDraftView[]> {
     return this.list()
@@ -518,6 +712,9 @@ export class StudioBackend {
   async agentAttach(input: { draftId: string; sessionId: string }): Promise<StudioAgentBinding> {
     const controller = await this.controller(draftId(input))
     if (typeof input.sessionId !== 'string' || input.sessionId.trim() === '') throw new Error('sessionId is required')
+    if (this.current.view().agent?.sessionId === input.sessionId) {
+      throw new Error('the selected session is already attached to the current instance')
+    }
     const other = [...this.controllers.entries()].find(([id, candidate]) => (
       id !== controller.record.id && candidate.view().agent?.sessionId === input.sessionId
     ))
@@ -531,7 +728,7 @@ export class StudioBackend {
 
   async dispose(): Promise<void> {
     await Promise.all([...this.controllerCreations.values()].map(creation => creation.catch(() => undefined)))
-    await Promise.all([...this.controllers.values()].map(controller => controller.dispose()))
+    await Promise.all([this.current.dispose(), ...[...this.controllers.values()].map(controller => controller.dispose())])
     this.controllers.clear()
     this.controllerCreations.clear()
   }

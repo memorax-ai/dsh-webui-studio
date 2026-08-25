@@ -194,7 +194,7 @@ export function PluginManagement({ selectedDraft, view }: {
                   {visiblePlugins.map(name => {
                     const index = order.indexOf(name)
                     const plugin = plugins.get(name)
-                    const fixed = name === 'dsh-harmony'
+                    const fixed = name === 'dsh-harmony' || name === 'the-binding-of-dsh'
                     const enabled = isProfilePluginEnabled(disabled, name)
                     const runtime = providerRuntimeStatus(profile?.runtimePlugins ?? [], name)
                     const runtimeLabel = runtime.total === 0 ? t('profileLoaderUnavailable')

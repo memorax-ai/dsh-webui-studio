@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
+import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { StudioDraftRecord } from '../contracts.js'
 import type { StudioCommandRunner } from './drafts.js'
-import { StudioPreviewSupervisor } from './preview.js'
+import { dshPackageModules, StudioPreviewSupervisor } from './preview.js'
 
 const roots: string[] = []
 const children: ChildProcess[] = []
@@ -19,6 +20,10 @@ afterEach(async () => {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
   }
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+})
+
+it('locates the node_modules tree that contains the installed DSH packages', () => {
+  expect(existsSync(join(dshPackageModules(harmonyBinEntry), '@deepseek-ai', 'dsh', 'package.json'))).toBe(true)
 })
 
 it('keeps the Preview runtime starting until its worker survives initial Harmony setup', async () => {

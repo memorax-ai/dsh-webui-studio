@@ -26,6 +26,12 @@ export interface StudioAgentBinding {
   source: 'created' | 'existing'
 }
 
+export interface StudioCurrentInstanceView {
+  previewUrl: string
+  bridgeCapability: string
+  agent?: StudioAgentBinding
+}
+
 export interface StudioReactSnapshot {
   component?: string
   owners: string[]
@@ -138,10 +144,13 @@ export interface StudioPreviewStatus {
 }
 
 export interface StudioAgentContext {
+  target: 'draft' | 'current-instance'
+  readOnly: boolean
   selection: StudioDomSelection | null
   project: StudioProjectState
   preview: StudioPreviewStatus
   projectFiles: StudioProjectFile[]
+  profile: HarmonyProfileView
   harmony: StudioHarmonyInspection | null
   targetRefs: Array<{ package: string; file: string }>
   targetRefsTruncated: boolean

@@ -28,6 +28,7 @@ import type {
 import {
   type StudioAgentBinding,
   type StudioCreateDraftInput,
+  type StudioCurrentInstanceView,
   type StudioBuildOutput,
   type StudioBuildResult,
   type StudioDraftView,
@@ -157,6 +158,7 @@ const TERMINAL_MIN_SIZE = { width: 280, height: 220 }
 const resizeDirections: readonly ResizeDirection[] = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']
 
 const EMPTY_REGISTRY: StudioRegistrySnapshot = { elements: [], variables: [] }
+const CURRENT_INSTANCE_KEY = 'current-instance'
 
 function PlusIcon(): JSX.Element {
   return <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>
@@ -659,6 +661,7 @@ export function App(): JSX.Element {
   const localizeError = (cause: unknown): string => studioErrorMessage(cause, t)
   const initialViewport = useMemo(deviceViewport, [])
   const [drafts, setDrafts] = useState<StudioDraftView[]>([])
+  const [currentInstance, setCurrentInstance] = useState<StudioCurrentInstanceView>()
   const [openDraftIds, setOpenDraftIds] = useState<string[]>([])
   const [draftTabDrag, setDraftTabDrag] = useState<DraftTabDrag>()
   const [loadingDrafts, setLoadingDrafts] = useState(true)
@@ -734,6 +737,7 @@ export function App(): JSX.Element {
   const agentSessionLoadErrorRef = useRef<string>()
   const draftIdRef = useRef<string>()
   const draftsRef = useRef<StudioDraftView[]>([])
+  const currentInstanceRef = useRef<StudioCurrentInstanceView>()
   const projectRef = useRef<StudioProjectState>()
   const previewFrames = useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameRefs = useRef(new Map<string, (node: HTMLIFrameElement | null) => void>())
@@ -766,7 +770,13 @@ export function App(): JSX.Element {
     return draft === undefined ? [] : [draft]
   })
   const selectedDraft = drafts.find(draft => draft.id === selectedDraftId)
-  const attachedAgentSessionIds = drafts.flatMap(draft => draft.agent === undefined ? [] : [draft.agent.sessionId]).sort().join('\0')
+  const availablePanels = selectedDraftId === undefined
+    ? panels.filter(item => item === 'selection' || item === 'agent')
+    : panels
+  const attachedAgentSessionIds = [
+    ...(currentInstance?.agent === undefined ? [] : [currentInstance.agent.sessionId]),
+    ...drafts.flatMap(draft => draft.agent === undefined ? [] : [draft.agent.sessionId]),
+  ].sort().join('\0')
   const selectedAgentSession = agentSessions.find(session => String(session.sessionId) === selectedAgentSessionId)
   const queuedPrompts = sessionId === undefined ? [] : agentQueues[sessionId] ?? []
   const pendingAgentInteractions = sessionId === undefined ? [] : agentInteractions[sessionId] ?? []
@@ -789,8 +799,10 @@ export function App(): JSX.Element {
       : terminalRuntimeState === 'failed' ? t('operationFailed') : undefined
   const localDshStatusLabel = connected ? t('localDshActive') : t('localDshStopped')
   const hasLiveDraft = drafts.some(draft => draft.runtime.state === 'starting' || draft.runtime.state === 'running')
-  const previewSession = selectedDraft?.runtime.bridgeCapability
-  const previewUrl = selectedDraft?.runtime.previewUrl
+  const activePreviewKey = selectedDraftId ?? CURRENT_INSTANCE_KEY
+  const previewSession = selectedDraftId === undefined ? currentInstance?.bridgeCapability : selectedDraft?.runtime.bridgeCapability
+  const previewUrl = selectedDraftId === undefined ? currentInstance?.previewUrl : selectedDraft?.runtime.previewUrl
+  const agentTargetReady = selectedDraftId === undefined ? currentInstance !== undefined : project?.state === 'active'
   const streaming = useMemo(() => agentStreamingContent(events), [events])
   const agentContextPressure = useMemo(() => readAgentContextPressure(agentProjections), [agentProjections])
   const agentContextBreakdown = useMemo(() => readAgentContextBreakdown(agentProjections), [agentProjections])
@@ -853,7 +865,9 @@ export function App(): JSX.Element {
   }
 
   const activateDraft = (draftId: string | undefined, sourceDrafts = draftsRef.current): void => {
-    const nextSessionId = sourceDrafts.find(draft => draft.id === draftId)?.agent?.sessionId
+    const nextSessionId = draftId === undefined
+      ? currentInstanceRef.current?.agent?.sessionId
+      : sourceDrafts.find(draft => draft.id === draftId)?.agent?.sessionId
     draftIdRef.current = draftId
     sessionRef.current = nextSessionId
     fileRequest.current += 1
@@ -865,6 +879,10 @@ export function App(): JSX.Element {
     setSource('')
     setSavedSource('')
     setReadiness({ findings: [] })
+    if (draftId === undefined) {
+      setPanel(current => current === 'selection' || current === 'agent' ? current : 'agent')
+      setLeftPanel('instance')
+    }
     setSelectedDraftId(draftId)
     setSessionId(nextSessionId)
     setEvents([])
@@ -977,7 +995,7 @@ export function App(): JSX.Element {
   }, [sessionId])
 
   useEffect(() => {
-    if (panel !== 'agent' || project?.state !== 'active' || sessionId !== undefined) return
+    if (panel !== 'agent' || !agentTargetReady || sessionId !== undefined) return
     const attached = new Set(attachedAgentSessionIds.split('\0').filter(Boolean))
     setAgentSessions([])
     setSelectedAgentSessionId('')
@@ -1009,7 +1027,7 @@ export function App(): JSX.Element {
       window.removeEventListener('focus', loader.refresh)
       loader.dispose()
     }
-  }, [panel, project?.state, sessionId, attachedAgentSessionIds])
+  }, [panel, agentTargetReady, sessionId, attachedAgentSessionIds])
 
   useEffect(() => {
     projectRef.current = project
@@ -1020,13 +1038,18 @@ export function App(): JSX.Element {
   }, [drafts])
 
   useEffect(() => {
+    currentInstanceRef.current = currentInstance
+  }, [currentInstance])
+
+  useEffect(() => {
     if (selectedDraftId === undefined || project === undefined) return
     setDrafts(current => current.map(draft => draft.id === selectedDraftId ? { ...draft, project } : draft))
   }, [project, selectedDraftId])
 
-  const queuePreviewUpdate = (draftId: string, update: Record<string, unknown>): void => {
+  const queuePreviewUpdate = (target: string, update: Record<string, unknown>): void => {
     previewUpdateQueue.current = previewUpdateQueue.current.then(async () => {
-      await callStudio('studio.preview.update', { draftId, ...update })
+      await callStudio(target === CURRENT_INSTANCE_KEY ? 'studio.current.preview.update' : 'studio.preview.update',
+        target === CURRENT_INSTANCE_KEY ? update : { draftId: target, ...update })
     }).catch(() => undefined)
   }
 
@@ -1083,14 +1106,14 @@ export function App(): JSX.Element {
   }, [previewFullscreen])
 
   useEffect(() => {
-    const connection = selectedDraftId === undefined ? undefined : previewConnections.current.get(selectedDraftId)
+    const connection = previewConnections.current.get(activePreviewKey)
     const frame = requestAnimationFrame(() => connection?.port.postMessage({
       type: 'refresh-overlay',
       sessionId: connection.sessionId,
       nonce: connection.nonce,
     }))
     return () => cancelAnimationFrame(frame)
-  }, [previewScale, previewSession, previewViewport.height, previewViewport.width, selectedDraftId])
+  }, [previewScale, previewSession, previewViewport.height, previewViewport.width, activePreviewKey])
 
   useEffect(() => {
     setElementSourceMessage(undefined)
@@ -1126,10 +1149,10 @@ export function App(): JSX.Element {
     selectionResolve.current += 1
     setRegistry(EMPTY_REGISTRY)
     setSelection(undefined)
-    if (selectedDraftId === undefined) return
-    const draftId = selectedDraftId
-    void callStudio<StudioPreviewStatus>('studio.preview.status', { draftId }).then(status => {
-      if (draftIdRef.current !== draftId) return
+    const target = selectedDraftId ?? CURRENT_INSTANCE_KEY
+    void callStudio<StudioPreviewStatus>(target === CURRENT_INSTANCE_KEY ? 'studio.current.preview.status' : 'studio.preview.status',
+      target === CURRENT_INSTANCE_KEY ? {} : { draftId: target }).then(status => {
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) !== target) return
       previewModeRef.current = status.mode
       setPreviewMode(status.mode)
       setRegistry(status.registry ?? EMPTY_REGISTRY)
@@ -1144,13 +1167,15 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     void Promise.all([
+      callStudio<StudioCurrentInstanceView>('studio.current.get', {}),
       callStudio<StudioDraftView[]>('studio.drafts.list', {}),
       callStudio<StudioWorkspaceState>('studio.workspace.get', {}),
-    ]).then(([next, workspace]) => {
+    ]).then(([current, next, workspace]) => {
+      currentInstanceRef.current = current
+      setCurrentInstance(current)
       setDrafts(next)
       setOpenDraftIds(workspace.openDraftIds)
       activateDraft(workspace.selectedDraftId, next)
-      if (next.length === 0) setCreateDialogOpen(true)
     }).catch(cause => setError(localizeError(cause)))
       .finally(() => setLoadingDrafts(false))
   }, [])
@@ -1469,51 +1494,54 @@ export function App(): JSX.Element {
 
   const connectPreview = (event: MessageEvent): void => {
     const draft = draftsRef.current.find(candidate => previewFrames.current.get(candidate.id)?.contentWindow === event.source)
-    const previewUrl = draft?.runtime.previewUrl
-    const sessionId = draft?.runtime.bridgeCapability
-    if (draft === undefined || previewUrl === undefined || sessionId === undefined) return
+    const current = currentInstanceRef.current
+    const currentTarget = previewFrames.current.get(CURRENT_INSTANCE_KEY)?.contentWindow === event.source ? current : undefined
+    const targetKey = draft?.id ?? (currentTarget === undefined ? undefined : CURRENT_INSTANCE_KEY)
+    const previewUrl = draft?.runtime.previewUrl ?? currentTarget?.previewUrl
+    const sessionId = draft?.runtime.bridgeCapability ?? currentTarget?.bridgeCapability
+    if (targetKey === undefined || previewUrl === undefined || sessionId === undefined) return
     if (event.origin !== new URL(previewUrl).origin || event.ports.length !== 1 || !isBridgeOffer(event.data, sessionId)) return
-    previewConnections.current.get(draft.id)?.port.close()
+    previewConnections.current.get(targetKey)?.port.close()
     const nextPort = event.ports[0]
     const nonce = nextBrowserId()
     const connection = { port: nextPort, sessionId, nonce }
-    previewConnections.current.set(draft.id, connection)
+    previewConnections.current.set(targetKey, connection)
     nextPort.onmessage = portEvent => {
       if (!isBridgeEnvelope(portEvent.data, sessionId, nonce)
-        || previewConnections.current.get(draft.id)?.port !== nextPort) return
+        || previewConnections.current.get(targetKey)?.port !== nextPort) return
       const message = portEvent.data
-      const active = draftIdRef.current === draft.id
+      const active = (draftIdRef.current ?? CURRENT_INSTANCE_KEY) === targetKey
       if (message.type === 'preview-ready' && boundedBridgeText(message.graphRev) && message.graphRev !== ''
         && (message.mode === 'browse' || message.mode === 'inspect')) {
         const mode = active ? previewModeRef.current : message.mode
         nextPort.postMessage({ type: 'set-mode', sessionId, nonce, mode })
-        queuePreviewUpdate(draft.id, {
+        queuePreviewUpdate(targetKey, {
           connected: true,
           graphRev: message.graphRev,
           mode,
         })
-        void confirmPreview(draft.id, message.graphRev)
+        if (draft !== undefined) void confirmPreview(draft.id, message.graphRev)
       }
       if (message.type === 'selection' && isStudioDomSelection(message.selection)) {
         const raw = message.selection
         const request = ++selectionResolve.current
         const commit = (next: StudioDomSelection): void => {
-          if (request !== selectionResolve.current || previewConnections.current.get(draft.id)?.port !== nextPort) return
-          if (draftIdRef.current === draft.id) {
+          if (request !== selectionResolve.current || previewConnections.current.get(targetKey)?.port !== nextPort) return
+          if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === targetKey) {
             setSelection(next)
             if (previewModeRef.current === 'inspect') setPanel('selection')
           }
-          queuePreviewUpdate(draft.id, { connected: true, mode: 'inspect', selection: next })
+          queuePreviewUpdate(targetKey, { connected: true, mode: 'inspect', selection: next })
         }
         if (raw.react?.source === undefined) commit(raw)
-        else void callStudio<StudioSourceCandidate>('studio.preview.resolveSource', {
-          draftId: draft.id,
-          source: raw.react.source,
-        }).then(resolved => commit({
+        else void callStudio<StudioSourceCandidate>(draft === undefined
+          ? 'studio.current.resolveSource' : 'studio.preview.resolveSource', draft === undefined
+          ? { source: raw.react.source }
+          : { draftId: draft.id, source: raw.react.source }).then(resolved => commit({
           ...raw,
           react: { ...raw.react!, source: { ...raw.react!.source!, resolved } },
         })).catch(cause => {
-          if (request === selectionResolve.current && draftIdRef.current === draft.id) {
+          if (request === selectionResolve.current && (draftIdRef.current ?? CURRENT_INSTANCE_KEY) === targetKey) {
             setError(localizeError(cause))
           }
         })
@@ -1530,7 +1558,7 @@ export function App(): JSX.Element {
       if (message.type === 'registry' && isStudioRegistrySnapshot(message.registry)) {
         const nextRegistry = message.registry
         if (active) setRegistry(nextRegistry)
-        queuePreviewUpdate(draft.id, {
+        queuePreviewUpdate(targetKey, {
           connected: true,
           mode: active ? previewModeRef.current : 'browse',
           registry: nextRegistry,
@@ -1559,7 +1587,7 @@ export function App(): JSX.Element {
       if (message.type === 'element-style-selectors' && boundedBridgeText(message.owner)
         && boundedBridgeText(message.elementId) && Array.isArray(message.candidates)
         && message.candidates.length <= 500 && message.candidates.every(candidate => boundedBridgeText(candidate))) {
-        const key = `${draft.id}\0${message.owner}\0${message.elementId}`
+        const key = `${targetKey}\0${message.owner}\0${message.elementId}`
         setElementSelectorCandidates(current => ({ ...current, [key]: message.candidates as string[] }))
       }
       if (active && message.type === 'mode' && (message.mode === 'browse' || message.mode === 'inspect')) {
@@ -1729,9 +1757,10 @@ export function App(): JSX.Element {
   const changePreviewMode = (mode: 'browse' | 'inspect'): void => {
     previewModeRef.current = mode
     setPreviewMode(mode)
-    const connection = selectedDraftId === undefined ? undefined : previewConnections.current.get(selectedDraftId)
+    const target = selectedDraftId ?? CURRENT_INSTANCE_KEY
+    const connection = previewConnections.current.get(target)
     connection?.port.postMessage({ type: 'set-mode', sessionId: connection.sessionId, nonce: connection.nonce, mode })
-    if (selectedDraftId !== undefined) queuePreviewUpdate(selectedDraftId, { connected: true, mode })
+    queuePreviewUpdate(target, { connected: true, mode })
   }
 
   const setVariable = (
@@ -1868,58 +1897,81 @@ export function App(): JSX.Element {
   }
 
   const createAgent = async (): Promise<void> => {
-    if (selectedDraftId === undefined) return
+    if (!agentTargetReady) return
     const draftId = selectedDraftId
-    const projectName = project?.name ?? 'Draft'
-    setCreatingAgentDraftId(draftId)
+    const currentTarget = draftId === undefined
+    const target = draftId ?? CURRENT_INSTANCE_KEY
+    const projectName = currentTarget ? 'Current WebUI' : project?.name ?? 'Draft'
+    setCreatingAgentDraftId(target)
     setError(undefined)
     try {
-      const result = await callStudio<StudioAgentBinding>('studio.agent.create', { draftId })
-      setDrafts(current => current.map(draft => draft.id === draftId ? { ...draft, agent: result } : draft))
-      if (draftIdRef.current === draftId) {
+      const result = await callStudio<StudioAgentBinding>(currentTarget
+        ? 'studio.current.agent.create' : 'studio.agent.create', currentTarget ? {} : { draftId })
+      if (currentTarget) {
+        setCurrentInstance(current => current === undefined ? current : { ...current, agent: result })
+        if (currentInstanceRef.current !== undefined) currentInstanceRef.current = { ...currentInstanceRef.current, agent: result }
+      } else {
+        setDrafts(current => current.map(draft => draft.id === draftId ? { ...draft, agent: result } : draft))
+      }
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) {
         sessionRef.current = result.sessionId
         setSessionId(result.sessionId)
       }
       const studioSession = result.sessionId as SessionId
       await studioApi.sessions.rename({ sessionId: studioSession, title: `Studio: ${projectName}` })
     } catch (cause) {
-      if (draftIdRef.current === draftId) setError(localizeError(cause))
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) setError(localizeError(cause))
     } finally {
-      setCreatingAgentDraftId(current => current === draftId ? undefined : current)
+      setCreatingAgentDraftId(current => current === target ? undefined : current)
     }
   }
 
   const attachAgent = async (): Promise<void> => {
-    if (selectedDraftId === undefined || selectedAgentSessionId === '') return
+    if (!agentTargetReady || selectedAgentSessionId === '') return
     const draftId = selectedDraftId
-    setAttachingAgentDraftId(draftId)
+    const currentTarget = draftId === undefined
+    const target = draftId ?? CURRENT_INSTANCE_KEY
+    setAttachingAgentDraftId(target)
     setError(undefined)
     try {
-      const result = await callStudio<StudioAgentBinding>('studio.agent.attach', {
-        draftId,
-        sessionId: selectedAgentSessionId,
-      })
-      setDrafts(current => current.map(draft => draft.id === draftId ? { ...draft, agent: result } : draft))
-      if (draftIdRef.current === draftId) {
+      const result = await callStudio<StudioAgentBinding>(currentTarget
+        ? 'studio.current.agent.attach' : 'studio.agent.attach', currentTarget
+        ? { sessionId: selectedAgentSessionId }
+        : { draftId, sessionId: selectedAgentSessionId })
+      if (currentTarget) {
+        setCurrentInstance(current => current === undefined ? current : { ...current, agent: result })
+        if (currentInstanceRef.current !== undefined) currentInstanceRef.current = { ...currentInstanceRef.current, agent: result }
+      } else {
+        setDrafts(current => current.map(draft => draft.id === draftId ? { ...draft, agent: result } : draft))
+      }
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) {
         sessionRef.current = result.sessionId
         setSessionId(result.sessionId)
       }
     } catch (cause) {
-      if (draftIdRef.current === draftId) setError(localizeError(cause))
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) setError(localizeError(cause))
     } finally {
-      setAttachingAgentDraftId(current => current === draftId ? undefined : current)
+      setAttachingAgentDraftId(current => current === target ? undefined : current)
     }
   }
 
   const leaveAgent = async (): Promise<void> => {
-    if (selectedDraftId === undefined || sessionId === undefined || running) return
+    if (sessionId === undefined || running) return
     const draftId = selectedDraftId
-    setLeavingAgentDraftId(draftId)
+    const currentTarget = draftId === undefined
+    const target = draftId ?? CURRENT_INSTANCE_KEY
+    setLeavingAgentDraftId(target)
     setError(undefined)
     try {
-      const view = await callStudio<StudioDraftView>('studio.agent.leave', { draftId })
-      setDrafts(current => current.map(draft => draft.id === draftId ? view : draft))
-      if (draftIdRef.current === draftId) {
+      if (currentTarget) {
+        const view = await callStudio<StudioCurrentInstanceView>('studio.current.agent.leave', {})
+        currentInstanceRef.current = view
+        setCurrentInstance(view)
+      } else {
+        const view = await callStudio<StudioDraftView>('studio.agent.leave', { draftId })
+        setDrafts(current => current.map(draft => draft.id === draftId ? view : draft))
+      }
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) {
         sessionRef.current = undefined
         setSessionId(undefined)
         setEvents([])
@@ -1927,9 +1979,9 @@ export function App(): JSX.Element {
         setRunning(false)
       }
     } catch (cause) {
-      if (draftIdRef.current === draftId) setError(localizeError(cause))
+      if ((draftIdRef.current ?? CURRENT_INSTANCE_KEY) === target) setError(localizeError(cause))
     } finally {
-      setLeavingAgentDraftId(current => current === draftId ? undefined : current)
+      setLeavingAgentDraftId(current => current === target ? undefined : current)
     }
   }
 
@@ -2029,6 +2081,18 @@ export function App(): JSX.Element {
     setRegistry(EMPTY_REGISTRY)
     queueWorkspaceUpdate(nextOpenDraftIds, draftId)
     return true
+  }
+
+  const selectCurrentInstance = (): void => {
+    if (selectedDraftId !== undefined && hasUnsavedSource) {
+      setPanel('source')
+      setError(t('errorUnsavedSwitchDraft'))
+      return
+    }
+    activateDraft(undefined)
+    setSelection(undefined)
+    setRegistry(EMPTY_REGISTRY)
+    queueWorkspaceUpdate(openDraftIds, undefined)
   }
 
   const openDraft = (draftId: string): void => {
@@ -2456,6 +2520,16 @@ export function App(): JSX.Element {
           {loadingDrafts
             ? <span className="draft-tabs-loading" aria-live="polite">{t('draftLoading')}</span>
             : <>
+              <div className="draft-tab current-instance-tab" data-active={selectedDraftId === undefined || undefined}>
+                <button id="current-instance-tab" className="draft-tab-select" type="button" role="tab"
+                  aria-selected={selectedDraftId === undefined} aria-controls="draft-workspace"
+                  tabIndex={selectedDraftId === undefined ? 0 : -1} onClick={selectCurrentInstance}>
+                  <span className="draft-tab-label" data-state="running">
+                    <span className="draft-tab-dot" aria-hidden="true" />
+                    <span>{t('currentInstance')}</span>
+                  </span>
+                </button>
+              </div>
               {openDrafts.map((draft, index) => {
                   const state = (instanceOperations[draft.id] === 'start' || instanceOperations[draft.id] === 'restart')
                     && draft.runtime.state !== 'running'
@@ -2530,7 +2604,7 @@ export function App(): JSX.Element {
     </header>
 
     <main id="draft-workspace" className="studio-main" role="tabpanel"
-      aria-labelledby={selectedDraftId === undefined ? undefined : `draft-tab-${selectedDraftId}`}
+      aria-labelledby={selectedDraftId === undefined ? 'current-instance-tab' : `draft-tab-${selectedDraftId}`}
       data-left-collapsed={leftSidebarCollapsed} data-right-collapsed={rightSidebarCollapsed}
       data-preview-fullscreen={previewFullscreen || undefined}
       style={{
@@ -2550,15 +2624,47 @@ export function App(): JSX.Element {
         <div className="project-body sidebar-content">
           <Tabs id="left-sidebar" className="left-sidebar-tabs" label={t('controlPages')} value={leftPanel}
             onChange={(value: LeftPanel) => setLeftPanel(value)}
-            options={[
+            options={selectedDraft === undefined ? [
+              { value: 'instance', label: t('instanceStatus') },
+            ] : [
               { value: 'instance', label: t('instanceStatus') },
               { value: 'plugins', label: t('pluginManagement') },
               { value: 'patches', label: t('patchManagement') },
             ]} />
           {selectedDraft === undefined
             ? <section id={`left-sidebar-panel-${leftPanel}`} role="tabpanel"
-                aria-labelledby={`left-sidebar-tab-${leftPanel}`} className="left-sidebar-page left-sidebar-empty-page">
-                <EmptyState className="left-sidebar-empty" title={t('noActiveDraft')} />
+                aria-labelledby={`left-sidebar-tab-${leftPanel}`} className="left-sidebar-page instance-control-panel">
+                <div className="instance-summary" data-state="running">
+                  <span className="instance-status-dot" aria-hidden="true" />
+                  <strong>{t('currentInstanceActive')}</strong>
+                </div>
+                <p className="current-instance-description">{t('currentInstanceDescription')}</p>
+                <section className="instance-preview-section" aria-labelledby="current-instance-preview-heading">
+                  <div id="current-instance-preview-heading" className="control-section-heading">
+                    <div><strong>{t('livePreview')}</strong><span>{t('currentInstanceReadOnly')}</span></div>
+                  </div>
+                  <div className="preview-controls">
+                    <div className="preview-mode-field" data-mode={previewMode} data-disabled={previewUrl === undefined || undefined}>
+                      <div className="preview-mode-heading">
+                        <strong>{t('interactionMode')}</strong>
+                        <span>{previewMode === 'browse' ? t('interactionBrowseDescription') : t('interactionInspectDescription')}</span>
+                      </div>
+                      <SegmentedControl className="preview-mode-control" label={t('previewInteractionMode')} value={previewMode}
+                        options={[
+                          { value: 'browse', label: t('browse'), disabled: previewUrl === undefined },
+                          { value: 'inspect', label: t('inspect'), disabled: previewUrl === undefined },
+                        ]} onChange={changePreviewMode} />
+                    </div>
+                    <div className="control-action-row">
+                      <Button size="small" className="sidebar-action-button preview-fit-button"
+                        onClick={() => fitPreviewToStage()}>{t('fitCanvas')}</Button>
+                      <Button size="small" className="sidebar-action-button preview-fullscreen-button" disabled={previewUrl === undefined}
+                        onClick={togglePreviewFullscreen}>
+                        <FullscreenIcon active={previewFullscreen} />{previewFullscreen ? t('exitFullscreen') : t('fullscreen')}
+                      </Button>
+                    </div>
+                  </div>
+                </section>
               </section>
             : leftPanel === 'instance' && <section id="left-sidebar-panel-instance" role="tabpanel"
                 aria-labelledby="left-sidebar-tab-instance" className="left-sidebar-page instance-control-panel">
@@ -2722,6 +2828,10 @@ export function App(): JSX.Element {
                               setLeftPanel('plugins')
                             }}>{t('openPluginManagement')}</Button>
                         : undefined} />}
+                {currentInstance !== undefined && <iframe ref={previewFrameRef(CURRENT_INSTANCE_KEY)}
+                  key={`${CURRENT_INSTANCE_KEY}:${currentInstance.bridgeCapability}:${previewVersions[CURRENT_INSTANCE_KEY] ?? 0}`}
+                  data-active={selectedDraftId === undefined} aria-hidden={selectedDraftId !== undefined}
+                  title={t('currentInstancePreview')} src={currentInstance.previewUrl} />}
                 {openDrafts.flatMap(draft => {
                   const url = draft.runtime.previewUrl
                   const session = draft.runtime.bridgeCapability
@@ -2751,7 +2861,7 @@ export function App(): JSX.Element {
           }} />}
         <Panel className="studio-inspector studio-inspector-block">
           <div className="inspector-nav">
-            {!rightSidebarCollapsed && <Tabs id="studio" label={t('studioTools')} value={panel} onChange={(value: Panel) => setPanel(value)} options={panels.map(item => ({
+            {!rightSidebarCollapsed && <Tabs id="studio" label={t('studioTools')} value={panel} onChange={(value: Panel) => setPanel(value)} options={availablePanels.map(item => ({
                 value: item,
                 label: item === 'elements' ? t('panelElements') : item === 'selection' ? t('panelSelect') : item === 'source' ? t('panelSource')
                   : item === 'build' ? t('panelBuild') : t('panelAgent'),
@@ -2818,7 +2928,8 @@ export function App(): JSX.Element {
 
         {panel === 'selection' && <PanelBody id="studio-panel-selection" aria-labelledby="studio-tab-selection" className="panel-content selection-panel" role="tabpanel">
           <div className="panel-heading">
-            <div><h2>{t('selectionTitle')}</h2><p>{t('selectionDescription')}</p></div>
+            <div><h2>{t('selectionTitle')}</h2><p>{selectedDraftId === undefined
+              ? t('selectionCurrentDescription') : t('selectionDescription')}</p></div>
           </div>
           {selection === undefined
             ? <EmptyState title={t('selectionEmpty')}
@@ -2954,15 +3065,17 @@ export function App(): JSX.Element {
 
         {panel === 'agent' && <PanelBody id="studio-panel-agent" aria-labelledby="studio-tab-agent" className="agent-panel" role="tabpanel">
           <div className="panel-heading agent-heading">
-            <div><h2>{t('agentTitle')}</h2><p>{t('agentSubtitle')}</p></div>
+            <div><h2>{t('agentTitle')}</h2><p>{selectedDraftId === undefined
+              ? t('agentCurrentInstanceSubtitle') : t('agentSubtitle')}</p></div>
             <div className="agent-heading-actions">
               {running && <Button variant="danger" size="small" onClick={() => void cancel()}>{t('agentCancel')}</Button>}
-              {sessionId !== undefined && <Button size="small" loading={leavingAgentDraftId === selectedDraftId}
+              {sessionId !== undefined && <Button size="small" loading={leavingAgentDraftId === activePreviewKey}
                 loadingLabel={t('agentLeaving')} disabled={running} title={running ? t('agentLeaveRunning') : t('agentLeaveDescription')}
                 onClick={() => void leaveAgent()}>{t('agentLeave')}</Button>}
             </div>
           </div>
           <AgentSession entries={events} streaming={streaming} queue={queuedPrompts} prompt={prompt}
+            placeholder={selectedDraftId === undefined ? t('agentCurrentPlaceholder') : undefined}
             sessionActive={sessionId !== undefined} sending={sending} models={agentModels}
             modelsLoading={loadingAgentModels} modelSelecting={selectingAgentModel}
             contextPressure={agentContextPressure} contextBreakdown={agentContextBreakdown}
@@ -2974,13 +3087,13 @@ export function App(): JSX.Element {
               : <AgentInteractionComposer key={activeAgentInteraction.rpcId} interaction={activeAgentInteraction}
                   pendingCount={pendingAgentInteractions.length} approvalArguments={activeAgentApprovalArguments}
                   t={t} onRespond={respondToAgentInteraction} />}
-            empty={project?.state === 'active' && sessionId === undefined
+            empty={agentTargetReady && sessionId === undefined
               ? <div className="agent-entry-actions">
-                    <Button variant="primary" loading={creatingAgentDraftId === selectedDraftId} loadingLabel={t('agentStarting')}
+                    <Button variant="primary" loading={creatingAgentDraftId === activePreviewKey} loadingLabel={t('agentStarting')}
                       onClick={() => void createAgent()}>{t('agentStart')}</Button>
                     <div className="agent-entry-divider"><span>{t('agentOrExisting')}</span></div>
                     <Select aria-label={t('agentExistingSession')} value={selectedAgentSessionId}
-                      disabled={loadingAgentSessions || attachingAgentDraftId === selectedDraftId}
+                      disabled={loadingAgentSessions || attachingAgentDraftId === activePreviewKey}
                       onChange={event => setSelectedAgentSessionId(event.target.value)}>
                       <option value="">{loadingAgentSessions ? t('agentSessionsLoading') : agentSessions.length === 0
                         ? t('agentSessionsEmpty') : t('agentChooseSession')}</option>
@@ -2988,10 +3101,10 @@ export function App(): JSX.Element {
                         {sessionTitle(session)}{session.running ? ` · ${t('agentSessionRunning')}` : ''}
                       </option>)}
                     </Select>
-                    <Button loading={attachingAgentDraftId === selectedDraftId} loadingLabel={t('agentAttaching')}
+                    <Button loading={attachingAgentDraftId === activePreviewKey} loadingLabel={t('agentAttaching')}
                       disabled={selectedAgentSession === undefined || selectedAgentSession.running}
                       onClick={() => void attachAgent()}>{t('agentAttach')}</Button>
-                    <small>{t('agentAttachDescription')}</small>
+                    <small>{selectedDraftId === undefined ? t('agentCurrentInstanceDescription') : t('agentAttachDescription')}</small>
                   </div>
               : undefined} />
         </PanelBody>}

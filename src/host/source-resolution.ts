@@ -102,16 +102,19 @@ async function installedPackageNames(nodeModules: string): Promise<string[]> {
   return names.flat()
 }
 
-async function packageRoots(draftRoot: string, nodeModulesDirs: string[]): Promise<PackageRoot[]> {
-  const draft = await realpath(draftRoot)
-  const draftManifest = JSON.parse(await readFile(join(draft, 'package.json'), 'utf8')) as PackageManifest
-  const draftClient = clientExport(draftManifest)
-  const roots: PackageRoot[] = [{
-    name: draftManifest.name as string,
-    root: draft,
-    kind: 'draft',
-    ...(draftClient === undefined ? {} : { client: draftClient }),
-  }]
+async function packageRoots(draftRoot: string | undefined, nodeModulesDirs: string[]): Promise<PackageRoot[]> {
+  const roots: PackageRoot[] = []
+  if (draftRoot !== undefined) {
+    const draft = await realpath(draftRoot)
+    const draftManifest = JSON.parse(await readFile(join(draft, 'package.json'), 'utf8')) as PackageManifest
+    const draftClient = clientExport(draftManifest)
+    roots.push({
+      name: draftManifest.name as string,
+      root: draft,
+      kind: 'draft',
+      ...(draftClient === undefined ? {} : { client: draftClient }),
+    })
+  }
   for (const nodeModules of nodeModulesDirs) {
     for (const name of await installedPackageNames(nodeModules)) {
       const installed = await packageRoot(join(nodeModules, ...name.split('/')), name)
@@ -158,14 +161,20 @@ async function pluginClientMatch(path: string, roots: PackageRoot[]): Promise<{ 
 }
 
 export class StudioSourceResolver {
-  readonly #roots: Promise<PackageRoot[]>
+  #roots?: Promise<PackageRoot[]>
 
-  constructor(draftRoot: string, profileDir: string, packageDirs: string[] = []) {
-    this.#roots = packageRoots(draftRoot, [join(profileDir, 'node_modules'), ...packageDirs])
+  constructor(
+    private readonly draftRoot: string | undefined,
+    private readonly profileDir: string,
+    private readonly packageDirs: string[] = [],
+  ) {}
+
+  private roots(): Promise<PackageRoot[]> {
+    return this.#roots ??= packageRoots(this.draftRoot, [join(this.profileDir, 'node_modules'), ...this.packageDirs])
   }
 
   async resolve(source: StudioSourceLocation): Promise<StudioSourceCandidate> {
-    const roots = await this.#roots
+    const roots = await this.roots()
     const pluginClient = await pluginClientMatch(source.file, roots)
     if (pluginClient !== undefined) {
       return result(source, pluginClient.file, pluginClient.root.kind, 'exact', pluginClient.root.name)
@@ -199,7 +208,7 @@ export class StudioSourceResolver {
   }> {
     const relativeFile = relativeSource(file)
     if (packageName === '' || relativeFile === undefined) throw new Error('dependency source reference is invalid')
-    const roots = (await this.#roots).filter(root => root.kind === 'dependency' && root.name === packageName)
+    const roots = (await this.roots()).filter(root => root.kind === 'dependency' && root.name === packageName)
     if (roots.length !== 1) throw new Error(`dependency package ${JSON.stringify(packageName)} is not uniquely installed in Preview`)
     const match = await exactMatch(resolve(roots[0]!.root, relativeFile), roots)
     if (match === undefined || match.root !== roots[0] || match.file !== relativeFile) {

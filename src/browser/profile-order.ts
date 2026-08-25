@@ -14,9 +14,12 @@ export function providerRuntimeStatus(
 
 export function moveProfilePlugin(order: readonly string[], name: string, targetIndex: number): string[] {
   const from = order.indexOf(name)
-  if (from === -1 || name === 'dsh-harmony') return [...order]
-  const firstMovable = order[0] === 'dsh-harmony' ? 1 : 0
-  const target = Math.max(firstMovable, Math.min(order.length - 1, targetIndex))
+  const pinned = new Set(['dsh-harmony', 'the-binding-of-dsh'])
+  if (from === -1 || pinned.has(name)) return [...order]
+  const barriers = order.flatMap((item, index) => pinned.has(item) ? [index] : [])
+  const lower = (barriers.filter(index => index < from).at(-1) ?? -1) + 1
+  const upper = (barriers.find(index => index > from) ?? order.length) - 1
+  const target = Math.max(lower, Math.min(upper, targetIndex))
   if (from === target) return [...order]
   const next = [...order]
   next.splice(from, 1)

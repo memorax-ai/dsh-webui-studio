@@ -5,6 +5,8 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { NodePeerClient } from 'the-binding-of-dsh'
 
 import type {
@@ -106,8 +108,14 @@ async function waitForPage(url: string, timeoutMs = 15_000): Promise<Response> {
   throw new Error(`Timed out waiting for ${url}`)
 }
 
+function clientGraphBoot(html: string): { index: number; revision?: string } {
+  const match = /(?:window\.__DSH_BOOT__|globalThis\["__DSH_BOOT__"\])\s*=\s*\{"rev":"([a-f0-9]+)"/.exec(html)
+  return { index: match?.index ?? -1, revision: match?.[1] }
+}
+
 let child: ChildProcess | undefined
 let peer: NodePeerClient | undefined
+let mcp: Client | undefined
 try {
   const packed = spawnSync('npm', ['pack', '--ignore-scripts', '--pack-destination', root], {
     cwd: packageRoot,
@@ -167,9 +175,15 @@ try {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   child = setupChild
+  let setupOutput = ''
+  setupChild.stdout.on('data', chunk => { setupOutput += chunk.toString() })
+  setupChild.stderr.on('data', chunk => { setupOutput += chunk.toString() })
   const setupOrigin = `http://127.0.0.1:${setupPort}`
-  const setupPage = await waitForPage(`${setupOrigin}${studioPath}`)
-  assert.match(await setupPage.text(), /"id":"dsh-harmony"/)
+  const setupPage = await waitForPage(`${setupOrigin}${studioPath}`).catch(error => {
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\n${setupOutput}`)
+  })
+  assert.match(await setupPage.text(), /<iframe src="\/"/)
+  assert.match(await fetch(setupOrigin).then(response => response.text()), /"id":"dsh-harmony"/)
   const inactiveRuntime = await fetch(`${setupOrigin}/dsh-harmony/runtime`).then(response => response.json()) as { state?: string }
   assert.equal(inactiveRuntime.state, 'missing')
   setupChild.kill()
@@ -228,6 +242,21 @@ try {
     })
   assert.equal(removedApi.status, 404)
 
+  mcp = new Client({ name: 'studio-integration', version: '1.0.0' })
+  await mcp.connect(new StreamableHTTPClientTransport(new URL(`${origin}${studioPath}/mcp`)))
+  const externalTools = await mcp.listTools()
+  assert.deepEqual(externalTools.tools.map(tool => tool.name), [
+    'studio_get_context',
+    'studio_get_selection',
+    'studio_get_harmony_profile',
+    'studio_inspect_harmony_target',
+    'studio_read_dependency_source',
+    'studio_preview_status',
+  ])
+  assert.ok(externalTools.tools.every(tool => tool.annotations?.readOnlyHint === true))
+  const externalProfile = await mcp.callTool({ name: 'studio_get_harmony_profile', arguments: {} })
+  assert.match(JSON.stringify(externalProfile.content), /dsh-harmony/)
+
   peer = new NodePeerClient({ baseUrl: origin, contribution: STUDIO_REMOTE })
   await peer.connect()
   const studioRemote = (peer.remote as unknown as { studio: StudioRemote }).studio
@@ -280,17 +309,15 @@ try {
   assert.ok(Array.isArray(draftProfile.patchOrder))
   const draftProfileInspection = await call<StudioHarmonyInspection>('studio.drafts.harmony.inspect', { draftId: created.id })
   assert.ok(draftProfileInspection.patches.every(patch => draftProfile.patchOrder.includes(patch.key)))
-  const movable = draftProfile.order.slice(1)
-  assert.ok(movable.length >= 2)
-  const reordered = [draftProfile.order[0]!, movable[1]!, movable[0]!, ...movable.slice(2)]
-  const reorderedProfile = await call<StudioHarmonyProfileUpdateResult>('studio.drafts.harmony.updateProfile', {
+  const draftDisabled = [...draftProfile.disabled, `${created.name}/*`]
+  const disabledProfile = await call<StudioHarmonyProfileUpdateResult>('studio.drafts.harmony.updateProfile', {
     draftId: created.id,
-    order: reordered,
+    order: draftProfile.order,
     patchOrder: draftProfile.patchOrder,
-    disabled: draftProfile.disabled,
+    disabled: draftDisabled,
   })
-  assert.equal(reorderedProfile.reload.state, 'succeeded')
-  assert.deepEqual(reorderedProfile.profile.order, reordered)
+  assert.equal(disabledProfile.reload.state, 'succeeded')
+  assert.deepEqual(disabledProfile.profile.disabled, draftDisabled)
   const restoredProfile = await call<StudioHarmonyProfileUpdateResult>('studio.drafts.harmony.updateProfile', {
     draftId: created.id,
     order: draftProfile.order,
@@ -341,12 +368,12 @@ try {
   const preview = await fetch(previewUrl)
   const html = await preview.text()
   const bridgeIndex = html.indexOf(`${studioPath}/bridge.js`)
-  const bootIndex = html.indexOf('window.__DSH_BOOT__')
+  const boot = clientGraphBoot(html)
   assert.notEqual(bridgeIndex, -1, 'Preview bridge was not injected into the official WebUI')
-  assert.notEqual(bootIndex, -1, 'official WebUI boot manifest was not found')
-  assert.ok(bridgeIndex < bootIndex, 'Preview bridge must run before the WebUI boot manifest')
+  assert.notEqual(boot.index, -1, `official WebUI boot manifest was not found:\n${html.slice(0, 8_000)}`)
+  assert.ok(bridgeIndex < boot.index, 'Preview bridge must run before the WebUI boot manifest')
   assert.match(html, /"id":"studio-draft"/)
-  const previewGraphRev = html.match(/window\.__DSH_BOOT__ = \{"rev":"([a-f0-9]+)"/)?.[1]
+  const previewGraphRev = boot.revision
   assert.ok(previewGraphRev, 'Preview did not expose its Client graph revision')
 
   const scoped = { draftId: created.id }
@@ -382,7 +409,7 @@ try {
   const rebuiltPreview = await fetch(previewUrl)
   assert.equal(new URL(rebuiltPreview.url).origin, previewOrigin)
   const rebuiltHtml = await rebuiltPreview.text()
-  const rebuiltGraphRev = rebuiltHtml.match(/window\.__DSH_BOOT__ = \{"rev":"([a-f0-9]+)"/)?.[1]
+  const rebuiltGraphRev = clientGraphBoot(rebuiltHtml).revision
   assert.ok(rebuiltGraphRev, 'Rebuilt Preview did not expose its Client graph revision')
   const confirmed = await call<StudioProjectState>('studio.project.activate', { ...scoped, graphRev: rebuiltGraphRev })
   assert.equal(confirmed.state, 'active')
@@ -400,6 +427,7 @@ try {
   assert.deepEqual(await call<StudioWorkspaceState>('studio.workspace.update', { openDraftIds: [] }), { openDraftIds: [] })
   assert.deepEqual(await call<StudioWorkspaceState>('studio.workspace.get', {}), { openDraftIds: [] })
 } finally {
+  await mcp?.close()
   await peer?.close()
   const runningChild = child
   if (runningChild?.exitCode === null) {

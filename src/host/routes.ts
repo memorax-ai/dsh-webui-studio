@@ -54,14 +54,41 @@ function documentHtml(): string {
 </html>`
 }
 
+function harmonySetupHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>DeepSeek WebUI Studio</title>
+    <style>html,body,iframe{width:100%;height:100%;margin:0;border:0}body{overflow:hidden}</style>
+  </head>
+  <body>
+    <iframe src="/" title="Install Harmony for DeepSeek WebUI Studio"></iframe>
+    <script>
+      const waitForHarmony = async () => {
+        try {
+          const status = await fetch('/dsh-harmony/runtime').then(response => response.json())
+          if (status.state === 'active') return location.reload()
+        } catch {}
+        setTimeout(waitForHarmony, 750)
+      }
+      waitForHarmony()
+    </script>
+  </body>
+</html>`
+}
+
 function rejectUntrusted(request: IncomingMessage, response: ServerResponse): boolean {
   if (isTrustedStudioRequest(request)) return false
   sendJson(response, 403, { error: 'Studio is available from the local machine only.' })
   return true
 }
 
-export function createStudioRoutes(assets: StudioAssets): WebRoute[] {
+export function createStudioRoutes(assets: StudioAssets, ready: () => boolean = () => true): WebRoute[] {
   const page = Buffer.from(documentHtml())
+  const setupPage = Buffer.from(harmonySetupHtml())
   return [
     {
       kind: 'prefix',
@@ -79,7 +106,7 @@ export function createStudioRoutes(assets: StudioAssets): WebRoute[] {
           return sendJson(response, 404, { error: 'not found' })
         }
         if (request.method !== 'GET' && request.method !== 'HEAD') return sendJson(response, 405, { error: 'method not allowed' })
-        sendAsset(request, response, 'text/html; charset=utf-8', page)
+        sendAsset(request, response, 'text/html; charset=utf-8', ready() ? page : setupPage)
       },
     },
     {

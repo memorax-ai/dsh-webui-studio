@@ -28,6 +28,7 @@ interface AgentSessionProps {
   streaming: AgentStreamingContent
   queue: readonly AgentQueueItem[]
   prompt: string
+  placeholder?: string
   sessionActive: boolean
   sending: boolean
   models?: SessionModels
@@ -295,6 +296,7 @@ export function AgentSession({
   streaming,
   queue,
   prompt,
+  placeholder,
   sessionActive,
   sending,
   models,
@@ -381,7 +383,7 @@ export function AgentSession({
     </div>
     {interaction ?? <form className="agent-composer" onSubmit={event => { event.preventDefault(); onSubmit() }}>
       <textarea aria-label={t('agentMessage')} value={prompt} onChange={event => onPromptChange(event.target.value)}
-        onKeyDown={onComposerKeyDown} placeholder={composerEnabled ? t('agentPlaceholder') : sessionActive
+        onKeyDown={onComposerKeyDown} placeholder={composerEnabled ? placeholder ?? t('agentPlaceholder') : sessionActive
           ? t('agentModelUnavailable') : t('agentPlaceholderStart')}
         disabled={!composerEnabled || sending} rows={3} />
       <footer>

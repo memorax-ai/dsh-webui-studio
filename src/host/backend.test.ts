@@ -26,6 +26,7 @@ const previewState = vi.hoisted(() => ({
 }))
 
 vi.mock('./preview.js', () => ({
+  dshPackageModules: () => '/dsh/node_modules',
   StudioPreviewSupervisor: class {
     runtime = { state: 'stopped', log: '' } as Record<string, string>
     snapshot() { return this.runtime }
@@ -97,6 +98,27 @@ function backend(
 }
 
 describe('StudioBackend', () => {
+  it('tracks the current WebUI as a read-only Preview target without a Draft', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-studio-current-'))
+    temporaryDirectories.push(root)
+    const studio = backend(record(root), undefined, {
+      profile: () => ({
+        revision: 4,
+        dir: join(root, 'profile'),
+        order: [], patchOrder: [], disabled: [], plugins: [],
+        orderViolations: [], patchOrderViolations: [], compatibility: [],
+      }),
+      inspect: vi.fn(() => ({ patches: [], targets: [] })),
+    } as unknown as StudioHarmonyService)
+
+    expect(studio.currentGet()).toMatchObject({
+      previewUrl: 'http://127.0.0.1:3081/#dsh-studio-preview=current-instance',
+      bridgeCapability: 'current-instance',
+    })
+    studio.currentPreviewUpdate({ connected: true, mode: 'inspect', graphRev: 'live-4' })
+    expect(studio.currentPreviewStatus()).toEqual({ connected: true, mode: 'inspect', graphRev: 'live-4' })
+  })
+
   it('reads and transactionally updates the active Draft Preview Harmony profile', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-studio-backend-'))
     temporaryDirectories.push(root)
@@ -440,7 +462,7 @@ describe('StudioBackend', () => {
     })
     expect(left).toMatchObject({ runtime: { state: 'running' } })
     expect(left).not.toHaveProperty('agent')
-    expect(cleanup).toHaveBeenCalledTimes(11)
+    expect(cleanup).toHaveBeenCalledTimes(12)
     expect(agents.resume).not.toHaveBeenCalled()
   })
 })

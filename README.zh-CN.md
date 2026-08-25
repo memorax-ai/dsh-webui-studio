@@ -54,6 +54,7 @@ service API 与 CLI 控制面，并使用
 - [x] 使用 CodeMirror 编辑 Draft 源码，并保持已安装依赖源码只读
 - [x] 构建、经 Harmony 应用、重载，并确认实时 Client graph revision
 - [x] 新建 Draft 级 Agent，或让已有 DSH 会话临时挂载 Studio tools、Skill 与上下文后继续工作
+- [x] 让外部 Agent 通过本机只读 Streamable HTTP MCP 入口检查正在运行的 WebUI
 - [x] 无需离开 Studio 即可处理单次工具授权、结构化问题和计划审核
 - [x] 检查 package exports、构建产物、Patch 状态、顺序、依赖和 pack 输出
 - [x] 同时运行多个相互隔离的 Draft Preview Host
@@ -84,6 +85,33 @@ Studio 的本地地址为：
 ```text
 http://127.0.0.1:<dsh-port>/studio
 ```
+
+外部 Agent 可以通过以下 MCP 地址连接正在运行的实例：
+
+```text
+http://127.0.0.1:<dsh-port>/studio/mcp
+```
+
+常见 MCP 客户端可使用如下配置：
+
+```json
+{
+  "mcpServers": {
+    "dsh-webui-studio": {
+      "type": "http",
+      "url": "http://127.0.0.1:<dsh-port>/studio/mcp"
+    }
+  }
+}
+```
+
+在外部 Agent 中将该地址添加为 Streamable HTTP MCP server，即可调用
+`studio_get_context`、`studio_get_selection`、`studio_get_harmony_profile`、
+`studio_inspect_harmony_target`、`studio_read_dependency_source` 和
+`studio_preview_status`。这些工具只检查当前 Host；外部 Agent 继续负责修改和构建自己的
+WebUI 项目。Harmony profile、Patch 与依赖源码检查由 Host 直接提供。DOM 选择信息需要
+打开 Studio，并在“当前实例”Preview 中选中元素。MCP 入口沿用 Studio 仅限 loopback
+访问的边界，也可以通过 SSH loopback tunnel 使用。
 
 托管数据位于 `$DSH_HOME/studio/`：
 
@@ -118,7 +146,7 @@ Draft 显示名与 npm package identity 相互独立，可在实例面板中重�
 > [!IMPORTANT]
 > Studio 依赖 [`docs/harmony-api-requirements.md`](docs/harmony-api-requirements.md)
 > 中列出的 Harmony 公共 service 与 CLI API，最低兼容版本为
-> `dsh-harmony@0.7.2`。
+> `dsh-harmony@0.8.7`。
 
 ```sh
 dsh plugin --profile web add dsh-webui-studio
