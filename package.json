@@ -15,13 +15,13 @@
     "visual-editor",
     "webui"
   ],
-  "homepage": "https://github.com/CH4ACKO3/dsh-webui-studio#readme",
+  "homepage": "https://github.com/memorax-ai/dsh-webui-studio#readme",
   "bugs": {
-    "url": "https://github.com/CH4ACKO3/dsh-webui-studio/issues"
+    "url": "https://github.com/memorax-ai/dsh-webui-studio/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CH4ACKO3/dsh-webui-studio.git"
+    "url": "git+https://github.com/memorax-ai/dsh-webui-studio.git"
   },
   "license": "MIT",
   "publishConfig": {

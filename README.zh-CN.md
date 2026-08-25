@@ -16,16 +16,16 @@
   <p>
     <a href="#快速开始"><strong>快速开始</strong></a>
     ·
-    <a href="https://github.com/CH4ACKO3/dsh-webui-studio/issues">报告问题</a>
+    <a href="https://github.com/memorax-ai/dsh-webui-studio/issues">报告问题</a>
     ·
-    <a href="https://github.com/CH4ACKO3/dsh-webui-studio/issues">功能建议</a>
+    <a href="https://github.com/memorax-ai/dsh-webui-studio/issues">功能建议</a>
   </p>
 
   [![License: MIT](https://img.shields.io/badge/license-MIT-0b63f6.svg)](LICENSE)
-  [![CI](https://github.com/CH4ACKO3/dsh-webui-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/CH4ACKO3/dsh-webui-studio/actions/workflows/ci.yml)
+  [![CI](https://github.com/memorax-ai/dsh-webui-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/memorax-ai/dsh-webui-studio/actions/workflows/ci.yml)
   [![npm](https://img.shields.io/npm/v/dsh-webui-studio.svg?color=0b63f6)](https://www.npmjs.com/package/dsh-webui-studio)
   [![Node.js](https://img.shields.io/badge/node-%5E22.22.3%20%7C%7C%20%3E%3D24.11.1-2f6f3e.svg)](package.json)
-  [![GitHub stars](https://img.shields.io/github/stars/CH4ACKO3/dsh-webui-studio?style=flat&color=0b63f6)](https://github.com/CH4ACKO3/dsh-webui-studio/stargazers)
+  [![GitHub stars](https://img.shields.io/github/stars/memorax-ai/dsh-webui-studio?style=flat&color=0b63f6)](https://github.com/memorax-ai/dsh-webui-studio/stargazers)
   [![Powered by Harmony](https://memorax-ai.github.io/dsh-harmony/harmony-powered.svg)](https://memorax-ai.github.io/dsh-harmony/)
 
   [简体中文](README.zh-CN.md) / [English](README.md)
@@ -160,7 +160,7 @@ Studio，无需再执行第二条 package 安装命令。已经安装 Harmony la
 如需开发 Studio 本身：
 
 ```sh
-git clone https://github.com/CH4ACKO3/dsh-webui-studio.git
+git clone https://github.com/memorax-ai/dsh-webui-studio.git
 cd dsh-webui-studio
 npm install
 npm run check
