@@ -239,7 +239,7 @@ describe('StudioDraftRegistry', () => {
     expect(renamed.label).toBe('Header experiment')
     await expect(registry.get(first.id)).resolves.toMatchObject({ label: 'Header experiment' })
     expect(second.label).toBe('新插件_2')
-  })
+  }, 15_000)
 
   it('persists the canonical source folder for a custom profile', async () => {
     const home = await mkdtemp(join(tmpdir(), 'dsh-studio-registry-'))

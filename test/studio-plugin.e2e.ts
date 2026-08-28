@@ -345,7 +345,7 @@ try {
     profileMode: 'custom',
     profileDirectory: join(home, 'profiles', 'web'),
   })
-  assert.equal(secondCreated.profileDirectory, realpathSync(join(home, 'profiles', 'web')))
+  assert.equal(secondCreated.profileDirectory, realpathSync.native(join(home, 'profiles', 'web')))
   const secondStarted = await call<StudioDraftView>('studio.drafts.start', { draftId: secondCreated.id })
   const secondPreviewUrl = secondStarted.runtime.previewUrl
   assert.ok(secondPreviewUrl)
