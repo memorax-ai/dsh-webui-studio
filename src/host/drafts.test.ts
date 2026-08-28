@@ -34,7 +34,7 @@ describe('StudioDraftRegistry', () => {
 
     expect(draft.root).toBe(draft.worktreeDir)
     expect(draft.label).toBe('新插件_1')
-    expect(draft.worktreeDir).toContain(join(home, 'studio', 'worktrees'))
+    expect(draft.worktreeDir).toContain(join(await realpath(home), 'studio', 'worktrees'))
     expect(JSON.parse(await readFile(join(draft.root, 'package.json'), 'utf8'))).toMatchObject({
       name: 'dsh-test-draft',
       scripts: { 'build:client': 'tsdown --config-loader unrun' },
