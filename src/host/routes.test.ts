@@ -93,13 +93,4 @@ describe('Studio routes', () => {
     expect(page.body).toContain("status.state === 'active'")
     expect(page.body).toContain('location.reload()')
   })
-
-  it('serves only a 404 tombstone at the removed Studio API path', async () => {
-    const registered = routes()
-    const removed = registered.find(route => route.path === `${STUDIO_PATH}/api`)!
-    await expect(invoke(removed, {
-      method: 'POST',
-      url: `${STUDIO_PATH}/api/studio.workspace.get`,
-    })).resolves.toMatchObject({ status: 404 })
-  })
 })

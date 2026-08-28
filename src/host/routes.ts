@@ -91,13 +91,6 @@ export function createStudioRoutes(assets: StudioAssets, ready: () => boolean = 
   const setupPage = Buffer.from(harmonySetupHtml())
   return [
     {
-      kind: 'prefix',
-      path: `${STUDIO_PATH}/api`,
-      handler(_request, response) {
-        sendJson(response, 404, { error: 'not found' })
-      },
-    },
-    {
       kind: 'exact',
       path: STUDIO_PATH,
       handler(request, response) {

@@ -324,15 +324,7 @@ export function applyPreviewWorker(
         response.end(request.method === 'HEAD' ? undefined : options.bridge)
       },
     }
-    const removedApi: WebRoute = {
-      kind: 'prefix',
-      path: '/dsh-harmony/studio-preview/api',
-      handler(_request, response) {
-        response.writeHead(404)
-        response.end('not found')
-      },
-    }
-    const dispose = [ctx.webServer.register(bridge), ctx.webServer.register(removedApi), ctx.webServer.tapIndex(html => {
+    const dispose = [ctx.webServer.register(bridge), ctx.webServer.tapIndex(html => {
       const config = `<script>window.__DSH_STUDIO_PREVIEW__=${JSON.stringify({
         parentOrigin: options.parentOrigin,
         capability: options.bridgeCapability,

@@ -235,13 +235,6 @@ try {
     assert.ok((await response.arrayBuffer()).byteLength > 0)
   }
 
-  const removedApi = await fetch(`${origin}${studioPath}/api/studio.workspace.get`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{}',
-    })
-  assert.equal(removedApi.status, 404)
-
   mcp = new Client({ name: 'studio-integration', version: '1.0.0' })
   await mcp.connect(new StreamableHTTPClientTransport(new URL(`${origin}${studioPath}/mcp`)))
   const externalTools = await mcp.listTools()
@@ -345,12 +338,6 @@ try {
   assert.ok(previewUrl)
   const previewOrigin = new URL(previewUrl).origin
   assert.notEqual(previewOrigin, origin)
-  const removedPreviewApi = await fetch(`${previewOrigin}/dsh-harmony/studio-preview/api/health`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: '{}',
-  })
-  assert.equal(removedPreviewApi.status, 404)
   const secondCreated = await call<StudioDraftView>('studio.drafts.create', {
     source: { kind: 'existing', directory: draftRoot },
     profileMode: 'custom',

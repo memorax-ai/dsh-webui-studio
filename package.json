@@ -1,6 +1,6 @@
 {
   "name": "dsh-webui-studio",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Harmony WebUI Studio with a live DSH preview and an in-host assistant session",
   "keywords": [
     "deepseek",
