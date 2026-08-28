@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessRuntime, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { afterEach, expect, test, vi } from 'vitest'
 import { resolveBuildArgv, StudioBuildError, StudioBuildRunner } from './build.js'
@@ -38,7 +38,7 @@ function handle(outcome: Promise<SubprocessOutcome> | SubprocessOutcome): Subpro
 
 function subprocess(spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle): SubprocessRuntime {
   return {
-    resolveExecutable: vi.fn(async command => `/bin/${command}`),
+    resolveExecutable: vi.fn(async command => isAbsolute(command) ? command : `/bin/${command}`),
     spawn: vi.fn(spawn),
   } as unknown as SubprocessRuntime
 }
@@ -66,10 +66,13 @@ test('runs the fixed build command with collected output', async () => {
   const root = draft({ packageManager: 'npm@11', scripts: { build: 'node build.mjs' } })
   const runtime = subprocess(() => handle({ exitCode: 0, signal: null }))
   const runner = new StudioBuildRunner(runtime)
+  const argv = process.platform === 'win32'
+    ? [process.env.ComSpec ?? 'cmd.exe', '/d', '/s', '/c', 'npm', 'run', 'build']
+    : ['/bin/npm', 'run', 'build']
 
-  await expect(runner.run(root)).resolves.toMatchObject({ argv: ['/bin/npm', 'run', 'build'], stdout: 'built\n' })
+  await expect(runner.run(root)).resolves.toMatchObject({ argv, stdout: 'built\n' })
   expect(runtime.spawn).toHaveBeenCalledWith(expect.objectContaining({
-    argv: ['/bin/npm', 'run', 'build'],
+    argv,
     cwd: root,
     signal: expect.any(AbortSignal),
   }))

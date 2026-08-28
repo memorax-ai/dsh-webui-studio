@@ -27,6 +27,8 @@ const dshBin = fileURLToPath(import.meta.resolve('@deepseek-ai/dsh/lib/bin.js'))
 const harmonyBin = process.env.DSH_HARMONY_BIN_ENTRY ?? fileURLToPath(import.meta.resolve('dsh-harmony/bin'))
 const harmonyPackageSpec = process.env.DSH_HARMONY_PACKAGE_SPEC
 const bindingPackageSpec = process.env.DSH_BINDING_PACKAGE_SPEC
+const npmCli = process.env.npm_execpath
+if (npmCli === undefined) throw new Error('npm_execpath is required to run the Studio integration test')
 const root = mkdtempSync(join(tmpdir(), 'dsh-harmony-studio-'))
 const home = join(root, 'home')
 const draftRoot = join(root, 'draft-plugin')
@@ -117,12 +119,12 @@ let child: ChildProcess | undefined
 let peer: NodePeerClient | undefined
 let mcp: Client | undefined
 try {
-  const packed = spawnSync('npm', ['pack', '--ignore-scripts', '--pack-destination', root], {
+  const packed = spawnSync(process.execPath, [npmCli, 'pack', '--ignore-scripts', '--pack-destination', root], {
     cwd: packageRoot,
     env,
     encoding: 'utf8',
   })
-  assert.equal(packed.status, 0, packed.stderr || packed.stdout)
+  assert.equal(packed.status, 0, packed.stderr || packed.stdout || packed.error?.message)
   const tarballs = readdirSync(root).filter((entry) => entry.endsWith('.tgz'))
   assert.equal(tarballs.length, 1, `npm pack created unexpected artifacts: ${tarballs.join(', ')}`)
   const studioTarball = join(root, tarballs[0]!)
@@ -136,7 +138,7 @@ try {
   assert.equal(installed.status, 0, `${installed.stdout}\n${installed.stderr}`)
   const localPackages = [harmonyPackageSpec, bindingPackageSpec].filter((spec): spec is string => spec !== undefined)
   if (localPackages.length > 0) {
-    const installedLocalPackages = spawnSync('npm', ['install', '--ignore-scripts', ...localPackages], {
+    const installedLocalPackages = spawnSync(process.execPath, [npmCli, 'install', '--ignore-scripts', ...localPackages], {
       cwd: join(home, 'profiles', 'web'),
       env,
       encoding: 'utf8',
@@ -280,7 +282,7 @@ try {
   })
   assert.notEqual(created.root, draftRoot)
   assert.equal(created.label, 'draft-plugin')
-  assert.match(created.worktreeDir, /studio\/worktrees/)
+  assert.ok(created.worktreeDir.includes(join('studio', 'worktrees')))
   assert.deepEqual(await call<StudioWorkspaceState>('studio.workspace.update', {
     openDraftIds: [created.id],
     selectedDraftId: created.id,

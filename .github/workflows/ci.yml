@@ -16,12 +16,15 @@ concurrency:
 
 jobs:
   quality:
-    name: Node ${{ matrix.node }}
-    runs-on: ubuntu-latest
+    name: Quality (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
         node:
           - 22.22.3
           - 24.11.1

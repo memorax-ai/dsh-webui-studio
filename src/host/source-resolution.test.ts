@@ -108,7 +108,7 @@ test('resolves installed transitive packages and reads only installed dependency
   await expect(resolver.readDependency('package-a', '../outside.tsx')).rejects.toThrow('invalid')
 })
 
-test('rejects a symlink that escapes an installed package root', async () => {
+test.skipIf(process.platform === 'win32')('rejects a symlink that escapes an installed package root', async () => {
   const { root, draft, profile } = await fixture()
   const outside = join(root, 'outside.tsx')
   await writeFile(outside, 'secret\n')

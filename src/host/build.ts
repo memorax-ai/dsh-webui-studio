@@ -90,7 +90,10 @@ export class StudioBuildRunner {
 
   async run(root: string, signal?: AbortSignal): Promise<StudioBuildOutput> {
     if (this.active !== undefined) throw new StudioBuildError('studio-build-busy', 'a Draft build is already running')
-    const argv = resolveBuildArgv(root)
+    const buildArgv = resolveBuildArgv(root)
+    const argv = process.platform === 'win32'
+      ? [process.env.ComSpec ?? 'cmd.exe', '/d', '/s', '/c', ...buildArgv]
+      : buildArgv
     const active: ActiveBuild = { controller: new AbortController(), canceled: false, timedOut: false }
     this.active = active
     const externalAbort = (): void => {

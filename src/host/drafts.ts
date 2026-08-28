@@ -258,6 +258,7 @@ async function initializeRepository(root: string, name: string, commands: Studio
   await writeFile(join(root, '.gitignore'), 'lib/\nnode_modules/\n')
   await writeFile(join(root, 'README.md'), `# ${name}\n\nCreated by dsh-webui-studio.\n`)
   await commands.run('git', ['init', '--initial-branch=main'], root)
+  await commands.run('git', ['config', 'core.autocrlf', 'false'], root)
   await commands.run('git', ['add', '.'], root)
   await commands.run('git', ['-c', 'user.name=dsh-webui-studio', '-c', 'user.email=studio@localhost', 'commit', '-m', 'Initial Draft'], root)
 }
@@ -344,6 +345,7 @@ export class StudioDraftRegistry {
         await mkdir(repositoryDir)
         await copyPluginDirectory(canonicalSource, repositoryDir)
         await this.commands.run('git', ['init', '--initial-branch=main'], repositoryDir)
+        await this.commands.run('git', ['config', 'core.autocrlf', 'false'], repositoryDir)
         await this.commands.run('git', ['add', '.'], repositoryDir)
         await this.commands.run('git', [
           '-c', 'user.name=dsh-webui-studio', '-c', 'user.email=studio@localhost',

@@ -60,7 +60,11 @@ function sourceReference(file: string): SourceReference {
       return { generated: false }
     }
   }
-  if (trimmed.startsWith('/@fs/')) return { absolute: trimmed.slice('/@fs'.length).replace(/[?#].*$/, ''), generated: false }
+  if (trimmed.startsWith('/@fs')) {
+    const vitePath = trimmed.slice('/@fs'.length).replace(/[?#].*$/, '')
+    const absolute = process.platform === 'win32' ? vitePath.replace(/^\/([a-zA-Z]:[\\/])/, '$1') : vitePath
+    return { absolute, generated: false }
+  }
   if (isAbsolute(trimmed)) return { absolute: trimmed.replace(/[?#].*$/, ''), generated: false }
   const bundler = trimmed.match(/^(?:webpack|webpack-internal|vite):\/\/(.*)$/)
   if (bundler !== null) {

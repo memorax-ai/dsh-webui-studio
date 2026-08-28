@@ -37,7 +37,7 @@ test('creates files only below an existing confined parent', async () => {
   await expect(readProjectFile(root, 'C:/outside.ts')).rejects.toThrow()
 })
 
-test('rejects symlink escapes and does not traverse symlinks while listing', async () => {
+test.skipIf(process.platform === 'win32')('rejects symlink escapes and does not traverse symlinks while listing', async () => {
   const root = await project()
   const outside = await mkdtemp(join(tmpdir(), 'dsh-studio-outside-'))
   roots.push(outside)

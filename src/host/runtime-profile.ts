@@ -29,6 +29,12 @@ export function bundledPnpmCommand(args: readonly string[]): [string, string[]] 
   return [process.execPath, [PNPM_ENTRY, ...args]]
 }
 
+export function packageManagerCommand(manager: string, args: readonly string[]): [string, string[]] {
+  if (manager === 'pnpm') return bundledPnpmCommand(args)
+  if (process.platform === 'win32') return [process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', manager, ...args]]
+  return [manager, [...args]]
+}
+
 function terminalToken(value: string): string {
   return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
 }
@@ -60,7 +66,7 @@ export async function installDraftDependencies(
   const manifest = await assertDraftPackageIdentity(draft)
   if (!hasDependencies(manifest)) return
   const manager = resolvePackageManager(draft.root, manifest)
-  const [command, args] = manager === 'pnpm' ? bundledPnpmCommand(['install', '--prefer-offline']) : [manager, ['install']]
+  const [command, args] = packageManagerCommand(manager, manager === 'pnpm' ? ['install', '--prefer-offline'] : ['install'])
   onOutput?.(terminalCommandLine(draft.root, command, args))
   try {
     await commands.run(command, args, draft.root, onOutput, signal)
@@ -80,7 +86,7 @@ export async function buildDraft(
 ): Promise<void> {
   signal?.throwIfAborted()
   const [manager, ...args] = resolveBuildArgv(draft.root)
-  const [command, commandArgs] = manager === 'pnpm' ? bundledPnpmCommand(args) : [manager, args]
+  const [command, commandArgs] = packageManagerCommand(manager, args)
   onOutput?.(terminalCommandLine(draft.root, command, commandArgs))
   try {
     await commands.run(command, commandArgs, draft.root, onOutput, signal)

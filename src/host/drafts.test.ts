@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { StudioDraftRegistry, studioCommands } from './drafts.js'
 
@@ -85,7 +85,7 @@ describe('StudioDraftRegistry', () => {
     expect(await readFile(join(destination, 'node_modules', 'cache'), 'utf8')).toBe('preserve dependencies\n')
   })
 
-  it('keeps the previous export intact when staging the next snapshot fails', async () => {
+  it.skipIf(process.platform === 'win32')('keeps the previous export intact when staging the next snapshot fails', async () => {
     const home = await mkdtemp(join(tmpdir(), 'dsh-studio-registry-'))
     const outside = await mkdtemp(join(tmpdir(), 'dsh-studio-export-outside-'))
     roots.push(home, outside)
@@ -185,7 +185,7 @@ describe('StudioDraftRegistry', () => {
     })
 
     expect(draft.name).toBe('installed-webui-plugin')
-    expect(draft.label).toBe(source.split('/').at(-1))
+    expect(draft.label).toBe(basename(source))
     expect(draft.root).not.toBe(source)
     expect(await readFile(join(draft.root, 'src', 'client.ts'), 'utf8')).toBe('export const source = true\n')
     await expect(readFile(join(draft.root, 'node_modules', 'ignored.txt'), 'utf8')).rejects.toThrow()
@@ -207,7 +207,7 @@ describe('StudioDraftRegistry', () => {
     })).rejects.toThrow('dsh.client.platform')
   })
 
-  it('rejects symbolic links instead of importing files outside the plugin folder', async () => {
+  it.skipIf(process.platform === 'win32')('rejects symbolic links instead of importing files outside the plugin folder', async () => {
     const home = await mkdtemp(join(tmpdir(), 'dsh-studio-registry-'))
     const source = await mkdtemp(join(tmpdir(), 'webui-plugin-with-link-'))
     const outside = await mkdtemp(join(tmpdir(), 'outside-webui-plugin-'))
