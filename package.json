@@ -105,7 +105,7 @@
     "dsh-harmony": "^0.8.7",
     "dsh-harmony-react": "^0.3.2",
     "pnpm": "^10.34.5",
-    "the-binding-of-dsh": "0.1.6",
+    "the-binding-of-dsh": "0.1.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
