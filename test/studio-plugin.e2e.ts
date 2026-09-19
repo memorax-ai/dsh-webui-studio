@@ -150,6 +150,9 @@ try {
   }
   if (harmonyPackageSpec !== undefined) packageManifest.dependencies['dsh-harmony'] = `file:${harmonyPackageSpec}`
   if (bindingPackageSpec !== undefined) packageManifest.dependencies['the-binding-of-dsh'] = `file:${bindingPackageSpec}`
+  // This directory contains the already-built publication files, not build sources.
+  // npm 10 still runs prepare during pack despite --ignore-scripts.
+  delete packageManifest.scripts.prepare
   writeFileSync(join(packingRoot, 'package.json'), JSON.stringify(packageManifest))
   const packed = spawnSync(process.execPath, [npmCli, 'pack', '--ignore-scripts', '--pack-destination', root], {
     cwd: packingRoot,
@@ -297,7 +300,11 @@ try {
     const invocation = invokeStudioRemote(studioRemote, method, payload, AbortSignal.timeout(120_000))
     assert.ok(invocation, `Studio method ${method} is not mapped`)
     const result = await invocation
-    if (!result.ok) assert.fail(`${JSON.stringify(result)}\n${output}`)
+    if (!result.ok) {
+      const drafts = await studioRemote.draftsList(AbortSignal.timeout(10_000))
+      const diagnostic = JSON.stringify({ result, drafts }, null, 2)
+      assert.fail(`${diagnostic}\n${output}`.replace(/token=[^\s"#]+/g, 'token=REDACTED'))
+    }
     return result.value as T
   }
 
