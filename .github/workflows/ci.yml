@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: memorax-ai/dsh-harmony
-          ref: cc0a864b1bff02d4eadae50ef20b244637936bd3
+          ref: 5fa207af8ddf55b7853d1eb0a28f31de6b2fa118
           path: .ci/harmony
       - uses: actions/checkout@v7
         with:
