@@ -20,8 +20,6 @@ jobs:
     name: Quality (${{ matrix.os }}, Node ${{ matrix.node }}, DSH ${{ matrix.dsh }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    env:
-      DSH_UPSTREAM_ENTRY: ${{ runner.temp }}/upstream/node_modules/@deepseek-ai/dsh/lib/bin.js
     strategy:
       fail-fast: false
       matrix:
@@ -51,6 +49,8 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Run release gate
+        env:
+          DSH_UPSTREAM_ENTRY: ${{ runner.temp }}/upstream/node_modules/@deepseek-ai/dsh/lib/bin.js
         run: npm run check
       - name: Verify native Session Gateway
         shell: bash
