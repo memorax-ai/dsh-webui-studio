@@ -259,3 +259,11 @@ patching and runtime model that makes this possible.
 ## License
 
 Distributed under the [MIT License](LICENSE).
+
+## Compatibility work in progress
+
+This branch targets DSH 0.1.5-rc.2 and 0.1.6-alpha.2 with the native Session Controller and Binding Gateway events. It requires the pending Binding 0.1.8 and Harmony 0.8.12 releases; published Binding 0.1.7 does not contain these APIs. Publish Harmony and Binding first, then refresh this package lock from the registry before releasing Studio.
+
+The adapter follows per-Session journals and assistant streams, reconstructs the active prefix after reconnecting, and returns native approval/question results. Preview Hosts retain the authenticated launch URL and use an exchanged cookie for their backend connection. The Harmony installer startup fix must also ship before validating fresh installations.
+
+`npm run test:gateway -- <upstream-install-root> <harmony-lib/bin.js>` exercises Studio RPC, Session snapshots, projections, history, model catalog and journal delivery against an isolated real Host. The Windows rc package/Preview integration test also passes. Browser interaction and cross-platform checks remain separate release gates.

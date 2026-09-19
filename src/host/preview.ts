@@ -4,7 +4,8 @@ import { createRequire } from 'node:module'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import { NodePeerClient } from 'the-binding-of-dsh'
+import { NodePeerClient, type NodePeerClientOptions } from 'the-binding-of-dsh'
+import WebSocket from 'ws'
 import type {
   StudioDraftRecord,
   StudioHarmonyProfile,
@@ -158,12 +159,12 @@ export class StudioPreviewSupervisor {
       this.child = child
       child.stdout?.on('data', chunk => {
         this.runtime.log = appendLog(this.runtime.log, chunk)
-        const match = this.runtime.log.match(/dsh web:\s+(http:\/\/127\.0\.0\.1:\d+)/)
+        const match = this.runtime.log.match(/dsh web:\s+(http:\/\/127\.0\.0\.1:\d+[^\s]*)[\r\n]/)
         if (match?.[1] !== undefined) {
           const { error: _error, ...runtime } = this.runtime
           this.runtime = {
             ...runtime,
-            previewUrl: `${match[1]}/#dsh-studio-preview=${encodeURIComponent(bridgeCapability)}`,
+            previewUrl: `${new URL(match[1]).href}#dsh-studio-preview=${encodeURIComponent(bridgeCapability)}`,
             bridgeCapability,
           }
         }
@@ -181,7 +182,20 @@ export class StudioPreviewSupervisor {
         this.runtime = { state: 'failed', error, log: this.runtime.log }
       })
       await this.waitForPreviewUrl(child, signal)
+      const launchUrl = new URL(this.runtime.previewUrl!)
+      let cookie = ''
+      if (launchUrl.searchParams.has('token')) {
+        const login = await fetch(launchUrl, { redirect: 'manual', signal })
+        cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
+        if (cookie === '') throw new Error('Preview Host did not issue an authenticated session')
+      }
       const peerClient = new NodePeerClient({
+        fetch: (input, init = {}) => {
+          const headers = new Headers(init.headers)
+          if (cookie !== '') headers.set('cookie', cookie)
+          return fetch(input, { ...init, headers })
+        },
+        createWebSocket: (url, protocol) => new WebSocket(url, protocol, { headers: cookie === '' ? {} : { cookie } }) as unknown as ReturnType<NonNullable<NodePeerClientOptions['createWebSocket']>>,
         baseUrl: new URL('/', this.runtime.previewUrl),
         contribution: STUDIO_PREVIEW_REMOTE,
       })

@@ -16,6 +16,7 @@ const harmonyBinEntry = fileURLToPath(import.meta.resolve('dsh-harmony/bin'))
 
 afterEach(async () => {
   vi.unstubAllEnvs()
+  vi.restoreAllMocks()
   for (const child of children.splice(0)) {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
   }
@@ -26,7 +27,17 @@ it('locates the node_modules tree that contains the installed DSH packages', () 
   expect(existsSync(join(dshPackageModules(harmonyBinEntry), '@deepseek-ai', 'dsh', 'package.json'))).toBe(true)
 })
 
-it('keeps the Preview runtime starting until its worker survives initial Harmony setup', async () => {
+it.each(['', '/?token=preview-test-token'])('keeps Preview starting until its worker is ready (%s)', async suffix => {
+  const observedCookies: string[] = []
+  if (suffix !== '') {
+    const originalFetch = globalThis.fetch
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      if (url.searchParams.has('token')) return Promise.resolve(new Response(null, { status: 302, headers: { 'set-cookie': 'preview=session; Path=/; HttpOnly' } }))
+      observedCookies.push(new Headers(init?.headers).get('cookie') ?? '')
+      return originalFetch(input, init)
+    })
+  }
   const root = await mkdtemp(join(tmpdir(), 'dsh-studio-preview-readiness-'))
   roots.push(root)
   const mainProfile = join(root, 'main', 'profiles', 'web')
@@ -42,7 +53,7 @@ it('keeps the Preview runtime starting until its worker survives initial Harmony
     name: 'draft-plugin', packageManager: 'npm@11', scripts: { build: 'echo built' },
   }))
   await writeFile(fakeHarmonyBin, `
-    process.stdout.write('dsh web: http://127.0.0.1:65534\\n')
+    process.stdout.write('dsh web: http://127.0.0.1:65534${suffix}\\n')
     setInterval(() => {}, 1_000)
   `)
   vi.stubEnv('DSH_HARMONY_DSH_ENTRY', fileURLToPath(import.meta.resolve('@deepseek-ai/dsh/lib/bin.js')))
@@ -62,7 +73,11 @@ it('keeps the Preview runtime starting until its worker survives initial Harmony
 
   const start = preview.start().catch(error => error as Error)
   await vi.waitFor(() => expect(preview.snapshot().previewUrl)
-    .toMatch(/^http:\/\/127\.0\.0\.1:65534\/#dsh-studio-preview=.+/))
+    .toContain('#dsh-studio-preview='))
+  if (suffix !== '') {
+    expect(preview.snapshot().previewUrl).toContain('?token=preview-test-token')
+    await vi.waitFor(() => expect(observedCookies).toContain('preview=session'))
+  }
   expect(preview.snapshot().state).toBe('starting')
   await expect(preview.stop()).resolves.toMatchObject({ state: 'stopped' })
   await expect(start).resolves.toMatchObject({ message: 'Preview start canceled' })

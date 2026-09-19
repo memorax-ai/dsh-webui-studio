@@ -3,7 +3,7 @@ import type {
   ModelSelection,
   SessionModels,
   SessionProjectionsBlock,
-} from '@deepseek-ai/dsh-host-apiproxy/api'
+} from './session-types'
 
 export interface AgentContextPressure {
   pressureTokens?: number

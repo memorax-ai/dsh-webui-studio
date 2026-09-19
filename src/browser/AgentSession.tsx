@@ -4,7 +4,7 @@ import type {
   SessionModels,
   ToolCallView,
   ToolResultView,
-} from '@deepseek-ai/dsh-host-apiproxy/api'
+} from './session-types'
 import {
   buildAgentConversation,
   type AgentContentBlock,

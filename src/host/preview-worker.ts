@@ -106,7 +106,8 @@ const applyBuildOperations = new Map<string, Promise<StudioProjectState>>()
 const PROFILE_UPDATE_OPERATION_LIMIT = 32
 
 function codec(typeSymbol: string, schema: z.ZodType): InvocationDescriptor['result'] {
-  return { mode: 'strict', typeSymbol, schema }
+  const compatible = { mode: 'strict' as const, typeSymbol, schema, create: () => schema }
+  return compatible
 }
 
 function parameter(name: string, schema: z.ZodType): InvocationDescriptor['parameters'][number] {

@@ -7,6 +7,7 @@
       disabled: !!js process.env.DSH_HARMONY_ACTIVE === '1'
     - id: harmony-studio-binding
       name: the-binding-of-dsh
+      disabled: !!js process.env.DSH_HARMONY_ACTIVE !== '1'
       inject: [harmony]
     - id: harmony-studio
       name: dsh-webui-studio

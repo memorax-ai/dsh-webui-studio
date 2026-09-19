@@ -4,7 +4,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import '@deepseek-ai/cordis-plugin-loader'
 import '@deepseek-ai/dsh-client-modules'
 import '@deepseek-ai/dsh-agent'
-import '@deepseek-ai/dsh-host-apiproxy'
 import '@deepseek-ai/dsh-host-webserver'
 import '@deepseek-ai/dsh-skill'
 import '@deepseek-ai/dsh-system-prompt'
@@ -68,6 +67,9 @@ export function apply(ctx: Context): void {
       for (const stop of dispose.reverse()) stop()
     }
   }, 'harmony-studio: static routes')
+
+  // The installation page must boot before Harmony can provide its runtime.
+  if (process.env.DSH_HARMONY_ACTIVE !== '1') return
 
   ctx.inject(runtimeInject, runtimeCtx => runtimeCtx.effect(() => {
     const host = `127.0.0.1:${runtimeCtx.webServer.port}`

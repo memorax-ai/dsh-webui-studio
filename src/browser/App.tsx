@@ -17,7 +17,7 @@ import type {
   ModelSelection,
   SessionModels,
   SessionSummary,
-} from '@deepseek-ai/dsh-host-apiproxy/api'
+} from './session-types'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {
   StudioVariableDefinition,
@@ -94,7 +94,6 @@ import {
   type AgentInteractionStore,
 } from './agent-interactions'
 import {
-  agentStreamingContent,
   agentQueueItems,
   type AgentQueueItem,
   type StudioConversationEntry,
@@ -803,7 +802,7 @@ export function App(): JSX.Element {
   const previewSession = selectedDraftId === undefined ? currentInstance?.bridgeCapability : selectedDraft?.runtime.bridgeCapability
   const previewUrl = selectedDraftId === undefined ? currentInstance?.previewUrl : selectedDraft?.runtime.previewUrl
   const agentTargetReady = selectedDraftId === undefined ? currentInstance !== undefined : project?.state === 'active'
-  const streaming = useMemo(() => agentStreamingContent(events), [events])
+  const [streaming, setStreaming] = useState({ text: '', reasoning: '' })
   const agentContextPressure = useMemo(() => readAgentContextPressure(agentProjections), [agentProjections])
   const agentContextBreakdown = useMemo(() => readAgentContextBreakdown(agentProjections), [agentProjections])
   const draftElements = useMemo(() => registry.elements.filter(item => item.owner === selectedDraft?.name), [registry, selectedDraft?.name])
@@ -896,6 +895,8 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     sessionRef.current = sessionId
+    setStreaming({ text: '', reasoning: '' })
+    if (sessionId !== undefined) return studioApi.watchSession(sessionId)
   }, [sessionId])
 
   useEffect(() => {
@@ -969,7 +970,7 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (sessionId === undefined) return
+    if (sessionId === undefined || !connected) return
     let current = true
     const initialRunningVersion = runningVersion.current
     void Promise.all([
@@ -992,7 +993,7 @@ export function App(): JSX.Element {
         if (current) setError(localizeError(cause))
       })
     return () => { current = false }
-  }, [sessionId])
+  }, [sessionId, connected])
 
   useEffect(() => {
     if (panel !== 'agent' || !agentTargetReady || sessionId !== undefined) return
@@ -1203,6 +1204,10 @@ export function App(): JSX.Element {
 
   useEffect(() => subscribeStudioEvents(envelope => {
     const frame = envelope.payload
+    if (frame.type === 'stream/error') {
+      setError(localizeError(frame.error))
+      return
+    }
     setAgentInteractions(current => updateAgentInteractions(current, envelope))
     if (frame.type === 'host/session-added'
       || frame.type === 'host/session-removed'
@@ -1223,6 +1228,15 @@ export function App(): JSX.Element {
     }
     const current = sessionRef.current
     if (current === undefined || frameSessionId !== current) return
+    if (frame.type === 'session/streaming') {
+      setStreaming({ text: String(frame.text ?? ''), reasoning: String(frame.reasoning ?? '') })
+      return
+    }
+    if (frame.type === 'session/snapshot' && Array.isArray(frame.events)) {
+      setEvents(frame.events as StudioConversationEntry[])
+      setHasOlderMessages(frame.hasMore === true)
+      return
+    }
     if (frame.type === 'host/session-status') {
       runningVersion.current += 1
       setRunning(frame.running === true)

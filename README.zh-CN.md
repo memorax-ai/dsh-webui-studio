@@ -238,3 +238,9 @@ DSH WebUI 已经提供了许多 Slot 点位，但 Studio 不满足于此。我�
 ## 许可证
 
 本项目采用 [MIT License](LICENSE)。
+
+## 兼容适配分支
+
+本分支面向 DSH 0.1.5-rc.2 和 0.1.6-alpha.2，使用原生 Session Controller 和 Binding Gateway 事件。依赖尚未发布的 Binding 0.1.8 和 Harmony 0.8.12；npm 上的 0.1.7 不包含这些接口。发布顺序应先 Harmony、Binding，再从 registry 刷新 Studio 锁文件。
+
+适配覆盖会话日志、助手增量输出、断线恢复和审批／提问回传。Preview 保留带认证参数的启动链接，并为后台连接换取 cookie。全新安装还需要 Harmony 的安装引导启动修复；Windows 上的 rc 完整打包／Preview 测试也已通过；浏览器交互及跨平台验证仍需独立检查。

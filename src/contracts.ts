@@ -16,7 +16,7 @@ export const STUDIO_PREVIEW_FRAGMENT = 'dsh-studio-preview'
 export interface StudioServerRequest<T = unknown> {
   type: 'server-request'
   rpcId: string
-  method: 'events.mux' | 'events.host'
+  method: 'events.mux' | 'events.host' | 'studio.event'
   payload: T
 }
 

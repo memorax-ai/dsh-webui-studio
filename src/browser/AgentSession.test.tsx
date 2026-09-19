@@ -1,4 +1,4 @@
-import type { SessionModels } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { SessionModels } from './session-types'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { AgentSession } from './AgentSession'

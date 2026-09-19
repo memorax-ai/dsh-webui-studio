@@ -1,4 +1,4 @@
-import type { HistoryEntry, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { HistoryEntry, ToolCallView, ToolResultView } from './session-types'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 
 export type StudioConversationEntry = HistoryEntry
@@ -197,24 +197,6 @@ export function buildAgentConversation(entries: readonly StudioConversationEntry
   }
 
   return items
-}
-
-export function agentStreamingContent(entries: readonly StudioConversationEntry[]): AgentStreamingContent {
-  let reasoning = ''
-  let text = ''
-  for (const { event } of entries) {
-    if (event.type === 'assistant/chunk') {
-      const { chunk } = event.data
-      if (chunk.type === 'text-delta') text += chunk.text
-      if (chunk.type === 'reasoning-delta') reasoning += chunk.text
-      continue
-    }
-    if (event.type === 'assistant/message' || event.type === 'turn/end') {
-      reasoning = ''
-      text = ''
-    }
-  }
-  return { reasoning, text }
 }
 
 export function agentQueueItems(value: unknown): AgentQueueItem[] {

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import type { ClientResponse } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { ClientResponse } from './session-types'
 import { Button } from './ui'
 import type { StudioTranslate } from './i18n'
 import {

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - codex/**
   workflow_dispatch:
 
 permissions:
@@ -16,31 +17,67 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality (${{ matrix.os }}, Node ${{ matrix.node }})
+    name: Quality (${{ matrix.os }}, Node ${{ matrix.node }}, DSH ${{ matrix.dsh }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - windows-latest
-        node:
-          - 22.22.3
-          - 24.11.1
+          - macos-latest
+        node: [22.22.3, 24.11.1]
+        dsh: [0.1.5-rc.2, 0.1.6-alpha.2]
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: memorax-ai/dsh-harmony
+          ref: cc0a864b1bff02d4eadae50ef20b244637936bd3
+          path: .ci/harmony
+      - uses: actions/checkout@v7
+        with:
+          repository: CH4ACKO3/the-binding-of-dsh
+          ref: 9d6996c76e3ccb30179092698edbbb5e4aed958e
+          path: .ci/binding
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Build pinned Harmony
+        working-directory: .ci/harmony
+        shell: bash
+        run: |
+          npm ci
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+      - name: Build pinned Binding
+        working-directory: .ci/binding
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+      - name: Configure unpublished dependency tarballs
+        run: node .github/scripts/ci-dependencies.mjs
       - name: Install dependencies
-        run: npm ci
+        run: npm install --package-lock-only --ignore-scripts --legacy-peer-deps
+      - run: npm ci --legacy-peer-deps
+      - name: Install isolated upstream
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/upstream"
+          echo '{"private":true}' > "$RUNNER_TEMP/upstream/package.json"
+          npm install --prefix "$RUNNER_TEMP/upstream" --ignore-scripts --no-audit --no-fund "@deepseek-ai/dsh@${{ matrix.dsh }}"
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Run release gate
         run: npm run check
+      - name: Verify native Session Gateway
+        shell: bash
+        run: node test/session-gateway.e2e.mjs "$RUNNER_TEMP/upstream" "$GITHUB_WORKSPACE/.ci/harmony/lib/bin.js"
       - name: Inspect package contents
         run: npm pack --dry-run --ignore-scripts

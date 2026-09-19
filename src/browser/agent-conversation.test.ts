@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentQueueItems, agentStreamingContent, buildAgentConversation, type StudioConversationEntry } from './agent-conversation'
+import { agentQueueItems, buildAgentConversation, type StudioConversationEntry } from './agent-conversation'
 
 function entry(event: Record<string, unknown>, view?: StudioConversationEntry['view']): StudioConversationEntry {
   return { event, ...(view === undefined ? {} : { view }) } as unknown as StudioConversationEntry
@@ -76,22 +76,6 @@ describe('buildAgentConversation', () => {
       { id: '8', kind: 'context', time: 32, blocks: [{ kind: 'text', text: 'Injected context' }] },
       { id: '9', kind: 'notice', time: 33, tone: 'neutral', reason: 'max-output' },
     ])
-  })
-
-  it('rebuilds the unfinished assistant prefix from durable chunk events', () => {
-    const chunks = [
-      entry({ type: 'assistant/chunk', seq: 8, time: 40, data: {
-        turn: 3, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'Checking ' },
-      } }),
-      entry({ type: 'assistant/chunk', seq: 9, time: 41, data: {
-        turn: 3, step: 1, chunk: { type: 'text-delta', index: 1, text: 'Working…' },
-      } }),
-    ]
-
-    expect(agentStreamingContent(chunks)).toEqual({ reasoning: 'Checking ', text: 'Working…' })
-    expect(agentStreamingContent([...chunks, entry({
-      type: 'assistant/message', seq: 10, time: 42, data: { message: { content: [{ type: 'text', text: 'Done' }] } },
-    })])).toEqual({ reasoning: '', text: '' })
   })
 
   it('does not render model-only replacement copies on the human transcript', () => {

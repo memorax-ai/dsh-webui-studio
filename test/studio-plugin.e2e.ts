@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { NodePeerClient } from 'the-binding-of-dsh'
+import { NodePeerClient, type NodePeerClientOptions } from 'the-binding-of-dsh'
+import WebSocket from 'ws'
 
 import type {
   StudioBuildResult,
@@ -21,15 +22,37 @@ import type {
 } from '../src/contracts.js'
 import { invokeStudioRemote, STUDIO_REMOTE, type StudioRemote } from '../lib/studio-remote.js'
 
+const cookies = new Map<string, string>()
+const fetch: typeof globalThis.fetch = async (input, init = {}) => {
+  const url = new URL(input instanceof Request ? input.url : input)
+  if (url.searchParams.has('token')) {
+    await authenticate(url.href)
+    url.searchParams.delete('token')
+    return fetch(url, init)
+  }
+  const headers = new Headers(init.headers)
+  const cookie = cookies.get(url.origin)
+  if (cookie !== undefined) headers.set('cookie', cookie)
+  return globalThis.fetch(input, { ...init, headers, signal: init.signal ?? AbortSignal.timeout(30_000) })
+}
+async function authenticate(output: string): Promise<void> {
+  const launch = output.match(/http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+/)?.[0]
+  if (launch === undefined) throw new Error('Host omitted its authenticated launch URL')
+  const response = await globalThis.fetch(launch, { redirect: 'manual', signal: AbortSignal.timeout(10_000) })
+  cookies.set(new URL(launch).origin, response.headers.getSetCookie().map(value => value.split(';')[0]).join('; '))
+}
+
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const studioPath = '/studio'
-const dshBin = fileURLToPath(import.meta.resolve('@deepseek-ai/dsh/lib/bin.js'))
+const dshBin = process.env.DSH_UPSTREAM_ENTRY ?? fileURLToPath(import.meta.resolve('@deepseek-ai/dsh/lib/bin.js'))
 const harmonyBin = process.env.DSH_HARMONY_BIN_ENTRY ?? fileURLToPath(import.meta.resolve('dsh-harmony/bin'))
 const harmonyPackageSpec = process.env.DSH_HARMONY_PACKAGE_SPEC
 const bindingPackageSpec = process.env.DSH_BINDING_PACKAGE_SPEC
 const npmCli = process.env.npm_execpath
 if (npmCli === undefined) throw new Error('npm_execpath is required to run the Studio integration test')
 const root = mkdtempSync(join(tmpdir(), 'dsh-harmony-studio-'))
+const dshCli = join(root, 'dsh-cli.mjs')
+writeFileSync(dshCli, `import { runCli } from ${JSON.stringify(pathToFileURL(dshBin).href)}; await runCli();\n`)
 const home = join(root, 'home')
 const draftRoot = join(root, 'draft-plugin')
 const draftDependencyRoot = join(root, 'draft-dependency')
@@ -79,11 +102,11 @@ window.__ModuleLoader__.load({ id: 'studio-draft', factory: () => ({ build: 1 })
 \`)
 console.log('studio draft built')
 `)
-const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: home }
+const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: home, DSH_HARMONY_DSH_ENTRY: dshBin }
 delete env.npm_config_dry_run
 delete env.NPM_CONFIG_DRY_RUN
 const add = (packageSpec: string) => spawnSync(process.execPath, [
-  dshBin, 'plugin', '--profile', 'web', 'add', packageSpec,
+  dshCli, 'plugin', '--profile', 'web', 'add', packageSpec,
 ], { cwd: root, env, encoding: 'utf8' })
 
 async function availablePort(): Promise<number> {
@@ -119,8 +142,17 @@ let child: ChildProcess | undefined
 let peer: NodePeerClient | undefined
 let mcp: Client | undefined
 try {
+  const packingRoot = join(root, 'package')
+  mkdirSync(packingRoot)
+  const packageManifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+  for (const path of packageManifest.files as string[]) {
+    if (existsSync(join(packageRoot, path))) cpSync(join(packageRoot, path), join(packingRoot, path), { recursive: true })
+  }
+  if (harmonyPackageSpec !== undefined) packageManifest.dependencies['dsh-harmony'] = `file:${harmonyPackageSpec}`
+  if (bindingPackageSpec !== undefined) packageManifest.dependencies['the-binding-of-dsh'] = `file:${bindingPackageSpec}`
+  writeFileSync(join(packingRoot, 'package.json'), JSON.stringify(packageManifest))
   const packed = spawnSync(process.execPath, [npmCli, 'pack', '--ignore-scripts', '--pack-destination', root], {
-    cwd: packageRoot,
+    cwd: packingRoot,
     env,
     encoding: 'utf8',
   })
@@ -138,7 +170,7 @@ try {
   assert.equal(installed.status, 0, `${installed.stdout}\n${installed.stderr}`)
   const localPackages = [harmonyPackageSpec, bindingPackageSpec].filter((spec): spec is string => spec !== undefined)
   if (localPackages.length > 0) {
-    const installedLocalPackages = spawnSync(process.execPath, [npmCli, 'install', '--ignore-scripts', ...localPackages], {
+    const installedLocalPackages = spawnSync(process.execPath, [npmCli, 'install', '--ignore-scripts', '--legacy-peer-deps', ...localPackages], {
       cwd: join(home, 'profiles', 'web'),
       env,
       encoding: 'utf8',
@@ -151,7 +183,7 @@ try {
     writeFileSync(profileManifestPath, `${JSON.stringify(profileManifest, null, 2)}\n`)
   }
 
-  const dump = spawnSync(process.execPath, [dshBin, '--profile', 'web', '--dump-config'], {
+  const dump = spawnSync(process.execPath, [dshCli, '--profile', 'web', '--dump-config'], {
     cwd: root,
     env,
     encoding: 'utf8',
@@ -171,7 +203,7 @@ try {
   assert.match(harmonyDump.stdout, /disabled: true/)
 
   const setupPort = await availablePort()
-  const setupChild = spawn(process.execPath, [dshBin, 'web', '--port', String(setupPort), '--no-open'], {
+  const setupChild = spawn(process.execPath, [dshCli, 'web', '--port', String(setupPort), '--no-open'], {
     cwd: root,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -184,6 +216,8 @@ try {
   const setupPage = await waitForPage(`${setupOrigin}${studioPath}`).catch(error => {
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n${setupOutput}`)
   })
+  for (let attempt = 0; attempt < 100 && !setupOutput.includes('?token='); attempt++) await new Promise(resolve => setTimeout(resolve, 50))
+  await authenticate(setupOutput)
   assert.match(await setupPage.text(), /<iframe src="\/"/)
   assert.match(await fetch(setupOrigin).then(response => response.text()), /"id":"dsh-harmony"/)
   const inactiveRuntime = await fetch(`${setupOrigin}/dsh-harmony/runtime`).then(response => response.json()) as { state?: string }
@@ -216,6 +250,7 @@ try {
     })
   })
 
+  await authenticate(output)
   const studioPage = await fetch(`${origin}${studioPath}`)
   assert.equal(studioPage.status, 200)
   const studioHtml = await studioPage.text()
@@ -238,7 +273,7 @@ try {
   }
 
   mcp = new Client({ name: 'studio-integration', version: '1.0.0' })
-  await mcp.connect(new StreamableHTTPClientTransport(new URL(`${origin}${studioPath}/mcp`)))
+  await mcp.connect(new StreamableHTTPClientTransport(new URL(`${origin}${studioPath}/mcp`), { fetch }))
   const externalTools = await mcp.listTools()
   assert.deepEqual(externalTools.tools.map(tool => tool.name), [
     'studio_get_context',
@@ -252,11 +287,14 @@ try {
   const externalProfile = await mcp.callTool({ name: 'studio_get_harmony_profile', arguments: {} })
   assert.match(JSON.stringify(externalProfile.content), /dsh-harmony/)
 
-  peer = new NodePeerClient({ baseUrl: origin, contribution: STUDIO_REMOTE })
+  peer = new NodePeerClient({ baseUrl: origin, contribution: STUDIO_REMOTE, fetch,
+    createWebSocket: (url, protocol) => new WebSocket(url, protocol, { headers: { cookie: cookies.get(origin)! } }) as unknown as ReturnType<NonNullable<NodePeerClientOptions['createWebSocket']>>,
+  })
   await peer.connect()
   const studioRemote = (peer.remote as unknown as { studio: StudioRemote }).studio
   const call = async <T>(method: string, payload: unknown): Promise<T> => {
-    const invocation = invokeStudioRemote(studioRemote, method, payload)
+    console.log(`[studio integration] ${method}`)
+    const invocation = invokeStudioRemote(studioRemote, method, payload, AbortSignal.timeout(120_000))
     assert.ok(invocation, `Studio method ${method} is not mapped`)
     const result = await invocation
     if (!result.ok) assert.fail(`${JSON.stringify(result)}\n${output}`)

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentHandle, AgentRegistry } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { defineTool, type JsonValue } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 import type { HarmonyProfileView } from 'dsh-harmony'
 import type { StudioAgentBinding, StudioAgentContext, StudioBuildResult, StudioDomSelection, StudioHarmonyInspection, StudioPreviewStatus, StudioProjectState } from '../contracts.js'
 
@@ -181,11 +182,13 @@ function studioRuntimeContext(workspace: StudioAgentWorkspace): string {
   ].join('\n')
 }
 
-async function installStudioMode(agentCtx: Context, workspace: StudioAgentWorkspace): Promise<() => Promise<void>> {
+async function installStudioMode(agentCtx: Context, workspace: StudioAgentWorkspace, agent?: Agent): Promise<() => Promise<void>> {
+  const subject = agent ?? (agentCtx as Context & { agent?: Agent }).agent
+  if (subject === undefined) throw new Error('Studio setup requires the Agent being configured')
   const fiber = agentCtx.inject(['tools', 'systemPrompt', 'skills'], scopedCtx => {
     const disposers: Array<() => void> = []
     try {
-      const inherited = scopedCtx.tools.schemas(scopedCtx.agent).map(tool => tool.name)
+      const inherited = scopedCtx.tools.schemas(subject).map(tool => tool.name)
       if (inherited.length > 0) disposers.push(scopedCtx.tools.restrict({ deny: inherited }))
       disposers.push(...registerTools(scopedCtx, workspace))
       disposers.push(scopedCtx.systemPrompt.section({
@@ -239,7 +242,7 @@ export class StudioAgentController {
       const handle = await this.agents.create({
         sessionId,
         meta: { cwd: project.root, ...(agentPreset === undefined ? {} : { agentPreset }) },
-        setup: async agentCtx => { await installStudioMode(agentCtx, this.workspace) },
+        setup: async (agentCtx, agent?: Agent) => { await installStudioMode(agentCtx, this.workspace, agent) },
       })
       this.handle = handle
       this.active = { sessionId: String(sessionId), ...(agentPreset === undefined ? {} : { agentPreset }), source: 'created' }
@@ -262,12 +265,12 @@ export class StudioAgentController {
       if (existing === undefined) {
         const handle = await this.agents.resume({
           resumeSessionId: id,
-          setup: async agentCtx => { await installStudioMode(agentCtx, this.workspace) },
+          setup: async (agentCtx, agent?: Agent) => { await installStudioMode(agentCtx, this.workspace, agent) },
         })
         this.handle = handle
         agent = handle.agent
       } else {
-        this.removeStudioMode = await installStudioMode(existing.ctx, this.workspace)
+        this.removeStudioMode = await installStudioMode(existing.ctx, this.workspace, existing)
         agent = existing
       }
       const agentPreset = agent.session.header.agentPreset

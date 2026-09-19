@@ -1,4 +1,4 @@
-import type { SessionModels, SessionProjectionsBlock } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { SessionModels, SessionProjectionsBlock } from './session-types'
 import { describe, expect, it } from 'vitest'
 import {
   agentContextOccupancy,

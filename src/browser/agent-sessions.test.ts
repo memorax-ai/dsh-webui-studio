@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { SessionSummary } from './session-types'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { availableAgentSessions, startAgentSessionLoader } from './agent-sessions.js'

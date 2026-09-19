@@ -204,7 +204,8 @@ const previewUpdateSchema = draftIdSchema.extend({
 const currentPreviewUpdateSchema = previewUpdateSchema.omit({ draftId: true })
 
 function codec(typeSymbol: string, schema: z.ZodType): InvocationDescriptor['result'] {
-  return { mode: 'strict', typeSymbol, schema }
+  const compatible = { mode: 'strict' as const, typeSymbol, schema, create: () => schema }
+  return compatible
 }
 
 function invocation(method: string, input?: z.ZodType, result: z.ZodType = z.unknown()): InvocationDescriptor {

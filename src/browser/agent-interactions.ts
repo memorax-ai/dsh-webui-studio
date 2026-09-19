@@ -5,7 +5,7 @@ import {
   type HostFrame,
   type MuxFrame,
   type QuestionResponsePayload,
-} from '@deepseek-ai/dsh-host-apiproxy/api'
+} from './session-types'
 import type { StudioServerRequest } from '../contracts'
 
 type ApprovalRequested = Extract<MuxFrame, { type: 'approval/requested' }>

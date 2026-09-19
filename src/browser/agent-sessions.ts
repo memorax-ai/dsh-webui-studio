@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@deepseek-ai/dsh-host-apiproxy/api'
+import type { SessionSummary } from './session-types'
 
 const REFRESH_INTERVAL_MS = 3_000
 
