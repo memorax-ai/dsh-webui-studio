@@ -61,7 +61,7 @@
     "remote": "node scripts/remote-studio.ts",
     "prepublishOnly": "npm run check",
     "prepare": "npm run build",
-    "test:gateway": "node test/session-gateway.e2e.mjs"
+    "test:gateway": "node test/session-gateway.e2e.mts"
   },
   "engines": {
     "node": "^22.22.3 || >=24.11.1"

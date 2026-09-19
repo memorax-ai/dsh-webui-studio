@@ -61,7 +61,7 @@ jobs:
           npm run build
           npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
       - name: Configure unpublished dependency tarballs
-        run: node .github/scripts/ci-dependencies.mjs
+        run: node .github/scripts/ci-dependencies.mts
       - name: Install dependencies
         run: npm install --package-lock-only --ignore-scripts --legacy-peer-deps
       - run: npm ci --legacy-peer-deps
@@ -78,6 +78,6 @@ jobs:
         run: npm run check
       - name: Verify native Session Gateway
         shell: bash
-        run: node test/session-gateway.e2e.mjs "$RUNNER_TEMP/upstream" "$GITHUB_WORKSPACE/.ci/harmony/lib/bin.js"
+        run: node test/session-gateway.e2e.mts "$RUNNER_TEMP/upstream" "$GITHUB_WORKSPACE/.ci/harmony/lib/bin.js"
       - name: Inspect package contents
         run: npm pack --dry-run --ignore-scripts
