@@ -57,3 +57,11 @@ jobs:
         run: node test/session-gateway.e2e.mts "$RUNNER_TEMP/upstream" "$GITHUB_WORKSPACE/node_modules/dsh-harmony/lib/bin.js"
       - name: Inspect package contents
         run: npm pack --dry-run --ignore-scripts
+
+  verify:
+    name: Verify
+    if: always()
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.quality.result }}" = success

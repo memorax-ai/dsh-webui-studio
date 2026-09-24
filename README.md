@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/CH4ACKO3/dsh-harmony">
+  <a href="https://github.com/memorax-ai/dsh-harmony">
     <img width="132" alt="Harmony" src="assets/harmony-icon.png">
   </a>
 
@@ -10,7 +10,7 @@
     <br />
     Inspect the real interface, edit source, run builds, and validate patches without loading unfinished code into your stable DSH Host.
     <br />
-    Powered by <a href="https://github.com/CH4ACKO3/dsh-harmony"><strong>dsh-harmony</strong></a>.
+    Powered by <a href="https://github.com/memorax-ai/dsh-harmony"><strong>dsh-harmony</strong></a>.
   </p>
 
   <p>
@@ -38,10 +38,10 @@ and its real plugin graph, then turns visual inspection and source edits into
 distributable plugin-owned artifacts.
 
 Studio is an independent downstream application of
-[`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony). It uses Harmony's
+[`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony). It uses Harmony's
 public runtime, Patch engine, service API, and CLI control surface together with the
 generic React registration API from
-[`dsh-harmony-react`](https://github.com/CH4ACKO3/dsh-harmony/tree/main/packages/react).
+[`dsh-harmony-react`](https://github.com/memorax-ai/dsh-harmony/tree/main/packages/react).
 The dependency direction stays one-way: Studio depends on Harmony; Harmony does
 not depend on Studio.
 
@@ -248,13 +248,13 @@ Agent and the developer.
 The DSH WebUI exposes many useful slots, but Studio aims for deeper and more
 flexible changes—including UI and behavior introduced by other plugins—while
 keeping independently authored modifications as compatible as possible.
-[`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony) provides the runtime
+[`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony) provides the runtime
 patching and runtime model that makes this possible.
 
 ## Related projects
 
-- [`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony) - runtime patching, transactional plugin reloads, and Patch inspection
-- [`dsh-harmony-react`](https://github.com/CH4ACKO3/dsh-harmony/tree/main/packages/react) - React-aware Patch factories and Studio element/variable registration
+- [`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony) - runtime patching, transactional plugin reloads, and Patch inspection
+- [`dsh-harmony-react`](https://github.com/memorax-ai/dsh-harmony/tree/main/packages/react) - React-aware Patch factories and Studio element/variable registration
 
 ## License
 
