@@ -103,7 +103,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@phenomnomnominal/tsquery": "^6.2.0",
-    "dsh-harmony": "^0.8.12",
+    "dsh-harmony": "^0.8.13",
     "dsh-harmony-react": "^0.3.2",
     "pnpm": "^10.34.5",
     "the-binding-of-dsh": "^0.1.8",
