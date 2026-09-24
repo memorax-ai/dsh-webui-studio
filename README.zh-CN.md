@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/CH4ACKO3/dsh-harmony">
+  <a href="https://github.com/memorax-ai/dsh-harmony">
     <img width="132" alt="Harmony" src="assets/harmony-icon.png">
   </a>
 
@@ -10,7 +10,7 @@
     <br />
     实时预览你的插件对 dsh webui 的修改效果，在可视化的集成开发工具中交互式地与 agent 协作构建插件客户端。
     <br />
-    Powered by <a href="https://github.com/CH4ACKO3/dsh-harmony"><strong>dsh-harmony</strong></a>.
+    Powered by <a href="https://github.com/memorax-ai/dsh-harmony"><strong>dsh-harmony</strong></a>.
   </p>
 
   <p>
@@ -36,10 +36,10 @@
 WebUI Studio 不是模拟页面生成器。它运行在官方 DSH WebUI 和真实插件图谱之上，
 把可视化检查与源码修改转化为可分发、由插件自身拥有的产物。
 
-Studio 是 [`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony)
+Studio 是 [`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony)
 的独立下游应用。它通过公共 package exports 使用 Harmony 的 runtime、Patch engine、
 service API 与 CLI 控制面，并使用
-[`dsh-harmony-react`](https://github.com/CH4ACKO3/dsh-harmony/tree/main/packages/react)
+[`dsh-harmony-react`](https://github.com/memorax-ai/dsh-harmony/tree/main/packages/react)
 提供的通用 React 注册 API。依赖始终保持单向：Studio 依赖 Harmony，Harmony 不依赖 Studio。
 
 ## 你可以做什么
@@ -227,13 +227,13 @@ Agent，而是为 Agent 和开发者提供更好的交互式修改体验。
 
 DSH WebUI 已经提供了许多 Slot 点位，但 Studio 不满足于此。我们希望实现更深层、
 更高自由度的修改，包括修改其他插件加入的 UI 和逻辑，同时让不同修改插件之间尽可能
-兼容。[`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony) 提供的运行时 Patch 与
+兼容。[`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony) 提供的运行时 Patch 与
 运行时模型，让这种能力成为可能。
 
 ## 相关项目
 
-- [`dsh-harmony`](https://github.com/CH4ACKO3/dsh-harmony) - runtime patch、事务式插件重载与 Patch 检查
-- [`dsh-harmony-react`](https://github.com/CH4ACKO3/dsh-harmony/tree/main/packages/react) - React-aware Patch 工厂与 Studio element/variable 注册
+- [`dsh-harmony`](https://github.com/memorax-ai/dsh-harmony) - runtime patch、事务式插件重载与 Patch 检查
+- [`dsh-harmony-react`](https://github.com/memorax-ai/dsh-harmony/tree/main/packages/react) - React-aware Patch 工厂与 Studio element/variable 注册
 
 ## 许可证
 
