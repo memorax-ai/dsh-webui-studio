@@ -20,7 +20,7 @@ const harmony = resolve(process.argv[3])
 const home = mkdtempSync(join(tmpdir(), 'studio-gateway-'))
 const profile = join(home, 'profiles/web')
 mkdirSync(join(profile, 'node_modules'), { recursive: true })
-for (const [name, path] of [['the-binding-of-dsh', binding], ['dsh-webui-studio', root]]) {
+for (const [name, path] of [['dsh-harmony', dirname(dirname(harmony))], ['the-binding-of-dsh', binding], ['dsh-webui-studio', root]]) {
   symlinkSync(path, join(profile, 'node_modules', name), process.platform === 'win32' ? 'junction' : 'dir')
 }
 writeFileSync(join(profile, 'package.json'), JSON.stringify({ private: true,
@@ -44,7 +44,7 @@ try {
   const login = await fetch(launch, { redirect: 'manual' })
   const cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
   const authenticatedFetch = (url, init = {}) => fetch(url, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), cookie } })
-  assert.equal((await authenticatedFetch(origin + '/studio')).status, 200)
+  assert.equal((await authenticatedFetch(origin + '/studio')).status, 200, output.replace(/token=[^\s]+/g, 'token=REDACTED'))
   peer = new BrowserPeerClient({ baseUrl: origin, fetch: authenticatedFetch,
     createWebSocket: (url, protocol) => new WebSocket(url, protocol, { headers: { cookie } }),
     contribution: { ...STUDIO_REMOTE, descriptors: [...STUDIO_REMOTE.descriptors, ...SESSION_REMOTE.descriptors.filter(item => item.mode !== 'stream')] },
@@ -70,6 +70,8 @@ try {
   assert.equal((await api.sessions.models({ sessionId })).result.ok, true)
   assert.equal((await api.sessions.rename({ sessionId, title: 'Gateway compatibility' })).result.ok, true)
   await wait(() => events.some(event => event.type === 'session/event'))
+  const startupOutput = output.replace(/token=[^\s]+/g, 'token=REDACTED')
+  assert.doesNotMatch(startupOutput, /failed to import|did not activate/, startupOutput)
   const event = events.find(event => event.type === 'session/event').event
   assert.equal((await api.sessions.history({ sessionId, beforeSeq: event.seq })).result.ok, true)
   assert(!events.some(event => event.type === 'stream/error'), JSON.stringify(events))
