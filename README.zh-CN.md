@@ -241,6 +241,6 @@ DSH WebUI 已经提供了许多 Slot 点位，但 Studio 不满足于此。我�
 
 ## 兼容适配分支
 
-本分支面向 DSH 0.1.5-rc.2 至 0.1.7-rc.2，使用原生 Session Controller 和 Binding Gateway 事件。隔离环境的 0.1.7-rc.2 Gateway 检查覆盖 Studio HTTP 服务、RPC、会话快照、控制、事件记录、历史及模型接口；浏览器交互仍需单独验证。
+本分支面向 DSH 0.1.5-rc.2 至 0.1.7-rc.2，以及 0.2.0-rc.1 预发布版，使用原生 Session Controller 和 Binding Gateway 事件。隔离环境的 0.1.7-rc.2 与 0.2.0-rc.1 检查覆盖 Studio HTTP 服务、RPC、会话快照、控制、事件记录、历史、模型接口和完整的草稿预览流程；浏览器交互仍需单独验证。
 
 适配覆盖会话日志、助手增量输出、断线恢复和审批／提问回传。Preview 保留带认证参数的启动链接，并为后台连接换取 cookie。全新安装还需要 Harmony 的安装引导启动修复；Windows 上的 rc 完整打包／Preview 测试也已通过；浏览器交互及跨平台验证仍需独立检查。

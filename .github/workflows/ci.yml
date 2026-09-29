@@ -29,6 +29,13 @@ jobs:
           - macos-latest
         node: [22.22.3, 24.11.1]
         dsh: [0.1.5-rc.2, 0.1.6-alpha.2]
+        include:
+          - os: ubuntu-latest
+            node: 24.11.1
+            dsh: 0.1.7-rc.2
+          - os: ubuntu-latest
+            node: 24.11.1
+            dsh: 0.2.0-rc.1
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
