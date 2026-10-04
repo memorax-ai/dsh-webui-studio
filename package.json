@@ -123,7 +123,7 @@
     "@deepseek-ai/dsh-api-gateway": "0.1.5-rc.2",
     "@deepseek-ai/dsh-api-session-controller": "0.1.5-rc.2",
     "@deepseek-ai/dsh-authorization": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-bash-local": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-bash-local": "0.1.5-rc.3",
     "@deepseek-ai/dsh-client-connection": "0.1.5-rc.2",
     "@deepseek-ai/dsh-client-modules": "0.1.5-rc.2",
     "@deepseek-ai/dsh-code-runtime": "0.1.5-rc.2",
