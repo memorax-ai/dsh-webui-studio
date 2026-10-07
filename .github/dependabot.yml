@@ -8,6 +8,10 @@ updates:
       time: '04:00'
       timezone: Asia/Shanghai
     open-pull-requests-limit: 10
+    groups:
+      dsh-release:
+        patterns:
+          - '@deepseek-ai/dsh*'
     ignore:
       - dependency-name: '*'
         update-types:
