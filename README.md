@@ -267,6 +267,11 @@ the matching npm lockfile. Dependabot groups the DSH development packages so
 their peer requirements are updated together. CI also retains the isolated
 0.1.5-rc.2 compatibility baseline and checks 0.1.5-rc.3 explicitly.
 
+The development baseline pins Cordis 4.0.2 and its loader 1.0.3 to match DSH's
+peer requirements. Cordis 4.0.4 and loader 1.0.5 fail npm peer resolution even
+when upgraded together, so Dependabot skips those versions. Reassess the pins
+and exclusions when updating the coordinated DSH development release.
+
 This branch targets DSH 0.1.5-rc.2 through 0.1.7-rc.2 and the 0.2.0-rc.1 prerelease with the native Session Controller and Binding Gateway events. Isolated 0.1.7-rc.2 and 0.2.0-rc.1 checks cover Studio HTTP serving, RPC, session snapshot, control, journal, history, model APIs, and the full Draft Preview lifecycle. They do not cover browser interaction.
 
 The adapter follows per-Session journals and assistant streams, reconstructs the active prefix after reconnecting, and returns native approval/question results. Preview Hosts retain the authenticated launch URL and use an exchanged cookie for their backend connection. The Harmony installer startup fix must also ship before validating fresh installations.

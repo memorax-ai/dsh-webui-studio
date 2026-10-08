@@ -13,6 +13,15 @@ updates:
         patterns:
           - '@deepseek-ai/dsh*'
     ignore:
+      # These versions fail peer resolution with the DSH 0.1.5-rc.3 baseline,
+      # including when Cordis and its loader are upgraded together.
+      # Reassess them when changing the coordinated DSH development release.
+      - dependency-name: '@deepseek-ai/cordis'
+        versions:
+          - '4.0.4'
+      - dependency-name: '@deepseek-ai/cordis-plugin-loader'
+        versions:
+          - '1.0.5'
       - dependency-name: '*'
         update-types:
           - version-update:semver-major
