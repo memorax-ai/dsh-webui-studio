@@ -245,10 +245,11 @@ DSH WebUI 已经提供了许多 Slot 点位，但 Studio 不满足于此。我�
 DSH 开发包成组更新，使它们的 peer 依赖要求保持一致。CI 继续保留隔离的
 0.1.5-rc.2 兼容基线，并明确检查 0.1.5-rc.3。
 
-开发基线将 Cordis 固定为 4.0.2、loader 固定为 1.0.3，以匹配 DSH 的 peer
-依赖要求。Cordis 4.0.4 和 loader 1.0.5 即使一起升级，也无法通过 npm peer
-依赖解析，因此 Dependabot 跳过这两个版本。更新整组 DSH 开发依赖时，需
-重新评估这些固定版本和排除规则。
+开发基线将 Cordis 固定为 4.0.2、loader 固定为 1.0.3、group 固定为 1.0.2，
+以匹配 DSH 的 peer 依赖要求。Dependabot 跳过这三个包的更高版本：DSH 要求
+这组 Cordis/group，而更高版本的 loader 要求更新的 Cordis。更新整组 DSH
+开发依赖时，需重新评估这些固定版本和排除规则。Cordis 4.0.4 和 loader
+1.0.5 即使一起升级，也无法通过 npm peer 依赖解析。
 
 本分支面向 DSH 0.1.5-rc.2 至 0.1.7-rc.2，以及 0.2.0-rc.1 预发布版，使用原生 Session Controller 和 Binding Gateway 事件。隔离环境的 0.1.7-rc.2 与 0.2.0-rc.1 检查覆盖 Studio HTTP 服务、RPC、会话快照、控制、事件记录、历史、模型接口和完整的草稿预览流程；浏览器交互仍需单独验证。
 
