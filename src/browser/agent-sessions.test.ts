@@ -8,7 +8,7 @@ function session(
   updatedAt: number,
   options: Partial<SessionSummary> = {},
 ): SessionSummary {
-  return {
+  const summary = {
     sessionId: sessionId as SessionId,
     updatedAt,
     running: false,
@@ -16,6 +16,7 @@ function session(
     agentAvailable: true,
     ...options,
   }
+  return summary
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
