@@ -13,6 +13,7 @@ function session(
     updatedAt,
     running: false,
     blank: false,
+    agentAvailable: true,
     ...options,
   }
 }

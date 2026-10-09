@@ -39,6 +39,9 @@ jobs:
           - os: ubuntu-latest
             node: 24.11.1
             dsh: 0.2.0-rc.2
+          - os: ubuntu-latest
+            node: 24.11.1
+            dsh: 0.2.1-alpha.2
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

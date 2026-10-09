@@ -90,21 +90,21 @@ function contextLabel(source: unknown): { label?: string; summary?: string } {
 
 function resultContent(entry: StudioConversationEntry): AgentContentBlock[] {
   if (entry.event.type !== 'tool/result') return []
-  const block = entry.event.data.message.content[0]
-  return block?.type === 'tool-result' ? contentBlocks(block.content) : []
+  const block = entry.event.data.message.content[0] as { type?: string; content?: unknown } | undefined
+  return contentBlocks(block?.type === 'tool-result' ? block.content : entry.event.data.message.content)
 }
 
 function toolResultCallId(entry: StudioConversationEntry): string | undefined {
   if (entry.event.type !== 'tool/result') return undefined
   const source = entry.event.data.message.source
   if (source.kind === 'tool') return String(source.callId)
-  const block = entry.event.data.message.content[0]
+  const block = entry.event.data.message.content[0] as { type?: string; toolCallId?: unknown } | undefined
   return block?.type === 'tool-result' ? String(block.toolCallId) : undefined
 }
 
 function toolResultFailed(entry: StudioConversationEntry): boolean {
   if (entry.event.type !== 'tool/result') return false
-  const block = entry.event.data.message.content[0]
+  const block = entry.event.data.message.content[0] as { type?: string; isError?: boolean } | undefined
   return entry.event.data.error !== undefined || (block?.type === 'tool-result' && block.isError === true)
 }
 

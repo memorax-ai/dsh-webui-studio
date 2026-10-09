@@ -26,7 +26,7 @@ describe('buildAgentConversation', () => {
     ])
   })
 
-  it('pairs tool calls with their result and keeps host presentation views', () => {
+  it.each([true, false])('pairs tool calls with their result and keeps host presentation views (wrapped: %s)', (wrapped) => {
     const items = buildAgentConversation([
       entry({ type: 'tool/call', seq: 4, time: 20, data: {
         turn: 1, step: 1, callId: 'call-1', name: 'studio_build_and_reload', arguments: '{"draftId":"draft-1"}',
@@ -37,7 +37,7 @@ describe('buildAgentConversation', () => {
         message: {
           role: 'user',
           source: { kind: 'tool', callId: 'call-1' },
-          content: [{ type: 'tool-result', toolCallId: 'call-1', content: [{ type: 'text', text: 'Build passed' }] }],
+          content: wrapped ? [{ type: 'tool-result', toolCallId: 'call-1', content: [{ type: 'text', text: 'Build passed' }] }] : [{ type: 'text', text: 'Build passed' }],
         },
       } }, { for: 'result', view: { card: 'generic', title: 'Draft reloaded', content: [{ type: 'text', text: 'Build passed' }] } }),
     ])
