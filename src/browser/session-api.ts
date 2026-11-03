@@ -201,7 +201,12 @@ export class StudioSessionApi {
         for (const [sessionId, block] of Object.entries(frame.value.projections)) {
           for (const [key, value] of Object.entries(block.values)) this.projection(sessionId, key, value, block.asOfSeq)
         }
-      } else if (frame.type === 'projection') this.projection(frame.sessionId, frame.key, frame.value, frame.seq)
+      } else if (frame.type === 'projection') {
+        const update = frame as { key: string; value: unknown } | { changes: readonly { key: string; val: unknown }[] }
+        if ('changes' in update) {
+          for (const change of update.changes) this.projection(frame.sessionId, change.key, change.val, frame.seq)
+        } else this.projection(frame.sessionId, update.key, update.value, frame.seq)
+      }
     }
     if (!signal.aborted) throw new Error('Session control stream ended')
   }
