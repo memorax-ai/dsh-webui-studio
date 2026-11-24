@@ -61,14 +61,14 @@ function sourceReference(file: string): SourceReference {
     }
   }
   if (trimmed.startsWith('/@fs')) {
-    const vitePath = trimmed.slice('/@fs'.length).replace(/[?#].*$/, '')
+    const vitePath = trimmed.slice('/@fs'.length).replace(/[?#].*/s, '')
     const absolute = process.platform === 'win32' ? vitePath.replace(/^\/([a-zA-Z]:[\\/])/, '$1') : vitePath
     return { absolute, generated: false }
   }
-  if (isAbsolute(trimmed)) return { absolute: trimmed.replace(/[?#].*$/, ''), generated: false }
+  if (isAbsolute(trimmed)) return { absolute: trimmed.replace(/[?#].*/s, ''), generated: false }
   const bundler = trimmed.match(/^(?:webpack|webpack-internal|vite):\/\/(.*)$/)
   if (bundler !== null) {
-    const body = bundler[1]!.replace(/[?#].*$/, '')
+    const body = bundler[1]!.replace(/[?#].*/s, '')
     const relativeMarker = body.indexOf('/./')
     if (relativeMarker !== -1) {
       const packageName = body.slice(0, relativeMarker).replace(/^\/+|\/+$/g, '')
@@ -82,7 +82,7 @@ function sourceReference(file: string): SourceReference {
     return { generated: true }
   }
   if (/^https?:\/\//.test(trimmed)) return { generated: true }
-  return { relative: relativeSource(trimmed.replace(/[?#].*$/, '')), generated: false }
+  return { relative: relativeSource(trimmed.replace(/[?#].*/s, '')), generated: false }
 }
 
 async function packageRoot(path: string, expectedName: string): Promise<PackageRoot | undefined> {
@@ -159,7 +159,7 @@ async function exactMatch(path: string, roots: PackageRoot[]): Promise<{ root: P
 }
 
 async function pluginClientMatch(path: string, roots: PackageRoot[]): Promise<{ root: PackageRoot; file: string } | undefined> {
-  const route = path.trim().replace(/[?#].*$/, '')
+  const route = path.trim().replace(/[?#].*/s, '')
   const root = roots.find(item => route === `/plugins/${item.name}/client.js` && item.client !== undefined)
   return root?.client === undefined ? undefined : exactMatch(resolve(root.root, root.client), [root])
 }

@@ -243,7 +243,7 @@ function formControl(element: Element): boolean {
 }
 
 function safeAttribute(name: string, value: string): string {
-  const sanitized = /^(?:href|src|action|formaction|poster|cite)$/i.test(name) ? value.replace(/[?#].*$/, '') : value
+  const sanitized = /^(?:href|src|action|formaction|poster|cite)$/i.test(name) ? value.replace(/[?#].*/s, '') : value
   return sanitized.length > 500 ? `${sanitized.slice(0, 500)}…` : sanitized
 }
 

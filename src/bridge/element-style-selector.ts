@@ -30,5 +30,5 @@ export function compileElementStyleSelector(selector: string, scope: string): st
     || escapesRoot(selector)) {
     throw new Error('Element CSS selectors must contain one leading & and stay within its subtree')
   }
-  return selector.replace('&', scope)
+  return scope + selector.slice(1)
 }
